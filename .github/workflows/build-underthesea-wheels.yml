@@ -33,11 +33,11 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable # Use maintained action
         with:
           toolchain: stable
-          profile: minimal
-          override: true
+          # profile: minimal # dtolnay action doesn't use profile, defaults are usually fine
+          # override: true # dtolnay action handles overrides automatically
 
       - name: Upgrade pip
         run: python -m pip install --upgrade pip setuptools wheel
