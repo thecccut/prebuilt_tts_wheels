@@ -37,10 +37,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential # Common build tools
 
+      - name: Install Maturin
+        run: pip install maturin # Install the build backend for underthesea-core
+
       - name: Build wheel
         run: |
           mkdir -p wheelhouse
-          pip install --upgrade pip setuptools wheel
+          # No need to install wheel/setuptools here, pip wheel handles it
           # This will attempt to build underthesea-core if no pre-built wheel is found
           pip wheel --wheel-dir wheelhouse underthesea==${{ github.event.inputs.version }}
 
