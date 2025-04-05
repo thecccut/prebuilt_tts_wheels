@@ -1,12 +1,12 @@
-name: Build SudachiPy ARM64 Linux Wheels
+name: Build Underthesea Linux ARM64 Wheels
 
 on:
   workflow_dispatch: # Allow manual triggering
     inputs:
       version:
-        description: 'Version of SudachiPy to build (e.g., 0.6.10)'
+        description: 'Version of Underthesea to build (e.g., 6.8.4)'
         required: true
-        default: '0.6.10'
+        default: '6.8.4' # Default to misaki dep
 
 # Add permissions needed to create releases
 permissions:
@@ -14,51 +14,50 @@ permissions:
 
 jobs:
   build_linux_arm64:
-    name: Build SudachiPy Linux ARM64 Wheels
-    runs-on: ubuntu-24.04-arm
-    
+    name: Build Underthesea Linux ARM64 Wheels
+    runs-on: ubuntu-24.04-arm # Target Linux ARM64
+
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        # Build for relevant Python versions (underthesea-core supports 3.8-3.11)
+        python-version: ["3.9", "3.10", "3.11"] 
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4.2.2
+      - name: Checkout repository (Optional but good practice)
+        uses: actions/checkout@v4 
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5.5.0
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install Rust and dependencies
+      - name: Install build dependencies
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           sudo apt-get update
-          sudo apt-get install -y build-essential
+          sudo apt-get install -y build-essential # Common build tools
 
       - name: Build wheel
         run: |
           mkdir -p wheelhouse
           pip install --upgrade pip setuptools wheel
-          pip wheel --wheel-dir wheelhouse sudachipy==${{ github.event.inputs.version }}
+          # This will attempt to build underthesea-core if no pre-built wheel is found
+          pip wheel --wheel-dir wheelhouse underthesea==${{ github.event.inputs.version }}
 
       - name: Upload Linux Wheels Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: linux-wheels-${{ matrix.python-version }} # Unique name per python version
+          name: underthesea-linux-wheels-${{ matrix.python-version }}
           path: wheelhouse/*.whl
 
   release:
     name: Create GitHub Release for Linux ARM64
-    needs: [build_linux_arm64] # Only depends on the Linux build job now
+    needs: [build_linux_arm64] # Run after the build job completes
     runs-on: ubuntu-latest
     steps:
       - name: Download all wheel artifacts
         uses: actions/download-artifact@v4
         with:
-          # No name specified, download all artifacts
           path: artifacts # Download all artifacts into the 'artifacts' directory
 
       - name: List downloaded files # Optional: for debugging
@@ -67,9 +66,9 @@ jobs:
       - name: Create Release and Upload Wheels
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: sudachipy-v${{ github.event.inputs.version }}-linux-arm64 # Specific tag for Linux ARM64
-          name: SudachiPy v${{ github.event.inputs.version }} Linux ARM64 Wheels # Specific name
+          tag_name: underthesea-v${{ github.event.inputs.version }}-linux-arm64 # Specific tag
+          name: Underthesea v${{ github.event.inputs.version }} Linux ARM64 Wheels # Specific name
           files: artifacts/*/*.whl # Upload all .whl files from all subdirectories in artifacts
-          make_latest: true # Keep as latest release for this specific build type
+          make_latest: true # Mark as latest if desired, or false if these are supplementary
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
