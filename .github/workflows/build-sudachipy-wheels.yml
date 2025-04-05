@@ -19,7 +19,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-13, macos-latest] # Re-added linux/arm64
-        python-version: ["3.10"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     steps:
       - name: Checkout repository
@@ -37,10 +37,9 @@ jobs:
         run: |
           cibuildwheel --output-dir wheelhouse
         env:
-          CIBW_BUILD: cp310-*  # Build for Python 3.10 only
           CIBW_ENVIRONMENT: "PIP_NO_CACHE_DIR=off"
           CIBW_BEFORE_BUILD: "pip install setuptools-rust"
-          CIBW_PROJECT_REQUIRES_PYTHON: "3.10"
+          CIBW_PROJECT_REQUIRES_PYTHON: ">=3.10"
           CIBW_SKIP: "pp*"  # Skip unsupported platforms like PyPy
 
       - name: Upload wheels to GitHub Release
