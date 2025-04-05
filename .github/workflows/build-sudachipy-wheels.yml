@@ -38,10 +38,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential
 
+      - name: Install Maturin
+        run: pip install maturin # Install the build backend
+
       - name: Build wheel
         run: |
           mkdir -p wheelhouse
-          pip install --upgrade pip setuptools wheel
+          # No need to install wheel/setuptools here, pip wheel handles it
           pip wheel --wheel-dir wheelhouse sudachipy==${{ github.event.inputs.version }}
 
       - name: Upload Linux Wheels Artifact
