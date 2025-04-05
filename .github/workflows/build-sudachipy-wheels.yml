@@ -8,6 +8,10 @@ on:
         required: true
         default: '0.6.10'
 
+# Add permissions needed to create releases
+permissions:
+  contents: write
+
 jobs:
   build_linux_arm64:
     name: Build SudachiPy Linux ARM64 Wheels
