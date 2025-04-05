@@ -18,15 +18,15 @@ jobs:
 
     strategy:
       matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest] # Removed unsupported linux/arm64
         python-version: ["3.10"]
-        platform: ["linux/amd64", "linux/arm64"]
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4.2.2
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5.5.0
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -37,14 +37,14 @@ jobs:
         run: |
           cibuildwheel --output-dir wheelhouse
         env:
-          CIBW_PLATFORM: ${{ matrix.platform }}
           CIBW_BUILD: cp310-*  # Build for Python 3.10 only
           CIBW_ENVIRONMENT: "PIP_NO_CACHE_DIR=off"
           CIBW_BEFORE_BUILD: "pip install setuptools-rust"
           CIBW_PROJECT_REQUIRES_PYTHON: "3.10"
+          CIBW_SKIP: "pp*"  # Skip unsupported platforms like PyPy
 
       - name: Upload wheels to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v2.2.1
         with:
           files: wheelhouse/*.whl
         env:
