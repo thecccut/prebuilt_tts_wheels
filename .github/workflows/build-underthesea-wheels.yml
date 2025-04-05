@@ -32,20 +32,27 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip setuptools wheel
+
       - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential # Common build tools
-
-      - name: Install Maturin
-        run: pip install maturin
+          pip install maturin # Install maturin here
 
       - name: Build wheel
         run: |
           mkdir -p wheelhouse
-          # No need to install wheel/setuptools here, pip wheel handles it
-          # This will attempt to build underthesea-core if no pre-built wheel is found
-          pip wheel --wheel-dir wheelhouse underthesea==${{ github.event.inputs.version }}
+          # Use --no-build-isolation since we've installed maturin and Rust already
+          pip wheel --no-build-isolation --wheel-dir wheelhouse underthesea==${{ github.event.inputs.version }}
 
       - name: Upload Linux Wheels Artifact
         uses: actions/upload-artifact@v4
