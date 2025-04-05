@@ -44,15 +44,11 @@ jobs:
           pip install --upgrade pip setuptools wheel
           pip wheel --wheel-dir wheelhouse sudachipy==${{ github.event.inputs.version }}
 
-      - name: Upload wheels to GitHub Release
-        uses: softprops/action-gh-release@v2 # Updated to v2
+      - name: Upload Linux Wheels Artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: sudachipy-v${{ github.event.inputs.version }}-arm64
-          name: SudachiPy v${{ github.event.inputs.version }} ARM64 Wheels # Generic name
-          files: wheelhouse/*.whl
-          make_latest: true # Mark this as the latest release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: linux-wheels-${{ matrix.python-version }} # Unique name per python version
+          path: wheelhouse/*.whl
 
   build_macos_arm64:
     name: Build SudachiPy macOS ARM64 Wheels
@@ -83,11 +79,32 @@ jobs:
           pip install --upgrade pip setuptools wheel
           pip wheel --wheel-dir wheelhouse sudachipy==${{ github.event.inputs.version }}
 
-      - name: Upload wheels to GitHub Release
-        uses: softprops/action-gh-release@v2 # Updated to v2
+      - name: Upload macOS Wheels Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-wheels-${{ matrix.python-version }} # Unique name per python version
+          path: wheelhouse/*.whl
+
+  release:
+    name: Create GitHub Release
+    needs: [build_linux_arm64, build_macos_arm64] # Run after both build jobs complete
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          # No name specified, download all artifacts
+          path: artifacts # Download all artifacts into the 'artifacts' directory
+
+      - name: List downloaded files # Optional: for debugging
+        run: ls -R artifacts
+
+      - name: Create Release and Upload Wheels
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: sudachipy-v${{ github.event.inputs.version }}-arm64
-          # Name is removed - action will find existing release by tag and append files
-          files: wheelhouse/*.whl
+          name: SudachiPy v${{ github.event.inputs.version }} ARM64 Wheels
+          files: artifacts/*/*.whl # Upload all .whl files from all subdirectories in artifacts
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
