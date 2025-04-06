@@ -6,51 +6,34 @@ on:
       version:
         description: 'Version of Misaki to build'
         required: true
-        default: '0.9.3'
+        default: '0.9.4'
 
 # Add permissions needed to create releases
 permissions:
   contents: write
 
 jobs:
-  build_wheels:
-    name: Build Misaki Wheels (${{ matrix.os }}-${{ matrix.arch }})
-    runs-on: ${{ matrix.os }}
+  build_amd64_wheels:
+    name: Build AMD64 Wheels
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        arch: [x64, arm64]
         python-version: ["3.9", "3.10", "3.11"]
-        include:
-          - os: ubuntu-latest
-            arch: x64
-            platform: linux/amd64
-          - os: ubuntu-latest
-            arch: arm64
-            platform: linux/arm64
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          architecture: ${{ matrix.arch }}
-
-      - name: Set up QEMU for ARM64 emulation
-        if: matrix.arch == 'arm64'
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          targets: ${{ matrix.arch == 'arm64' && 'aarch64-unknown-linux-gnu' || 'x86_64-unknown-linux-gnu' }}
 
       - name: Install build dependencies
         run: |
@@ -62,18 +45,50 @@ jobs:
           mkdir -p wheelhouse
           pip wheel --no-deps --wheel-dir wheelhouse "misaki[en,ja,ko,zh]==${{ github.event.inputs.version }}"
 
-      - name: List wheelhouse contents
-        run: ls -R wheelhouse
-
-      - name: Upload Wheels Artifact
+      - name: Upload AMD64 Wheels
         uses: actions/upload-artifact@v4
         with:
-          name: misaki-wheels-${{ matrix.os }}-${{ matrix.arch }}-py${{ matrix.python-version }}
+          name: misaki-wheels-amd64-py${{ matrix.python-version }}
           path: wheelhouse/*.whl
 
-  release:
+  build_arm64_wheels:
+    name: Build ARM64 Wheels
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ARM64 wheel in Docker
+        run: |
+          mkdir -p wheelhouse
+          docker buildx build --platform linux/arm64 \
+            --build-arg PYTHON_VERSION=${{ matrix.python-version }} \
+            --build-arg PACKAGE_VERSION=${{ github.event.inputs.version }} \
+            -f .github/workflows/misaki-build.Dockerfile \
+            --output type=local,dest=wheelhouse .
+
+      - name: Upload ARM64 Wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: misaki-wheels-arm64-py${{ matrix.python-version }}
+          path: wheelhouse/*.whl
+
+  create_release:
     name: Create GitHub Release
-    needs: [build_wheels]
+    needs: [build_amd64_wheels, build_arm64_wheels]
     runs-on: ubuntu-latest
     steps:
       - name: Download all wheel artifacts
