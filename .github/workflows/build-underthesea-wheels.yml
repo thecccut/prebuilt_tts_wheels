@@ -76,12 +76,20 @@ jobs:
       - name: List downloaded files # Optional: for debugging
         run: ls -R artifacts
 
+      - name: Prepare release assets
+        run: |
+          mkdir release_assets
+          cp artifacts/underthesea-linux-wheels-*/*.whl release_assets/
+          echo "--- Contents of release_assets ---"
+          ls -l release_assets
+          echo "----------------------------------"
+
       - name: Create Release and Upload Wheels
         uses: softprops/action-gh-release@v2 # Revert back to v2 for consistency
         with:
           tag_name: underthesea-v${{ github.event.inputs.version }}-linux-arm64 # Specific tag
           name: Underthesea v${{ github.event.inputs.version }} Linux ARM64 Wheels # Specific name
-          files: artifacts/underthesea-linux-wheels-*/*.whl # Be specific about which wheels to upload from artifacts
+          files: release_assets/*.whl # Upload wheels from the consolidated directory
           make_latest: true # Valid input for v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
