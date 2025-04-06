@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11"]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
 
     steps:
       - name: Checkout repository
@@ -57,7 +57,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11"]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
 
     steps:
       - name: Checkout repository
@@ -78,7 +78,12 @@ jobs:
             --build-arg PYTHON_VERSION=${{ matrix.python-version }} \
             --build-arg PACKAGE_VERSION=${{ github.event.inputs.version }} \
             -f .github/workflows/misaki-build.Dockerfile \
-            --output type=local,dest=wheelhouse .
+            --load \
+            -t misaki-builder .
+          docker run --rm \
+            -v $(pwd)/wheelhouse:/wheelhouse \
+            -e PACKAGE_VERSION=${{ github.event.inputs.version }} \
+            misaki-builder
 
       - name: Upload ARM64 Wheels
         uses: actions/upload-artifact@v4
