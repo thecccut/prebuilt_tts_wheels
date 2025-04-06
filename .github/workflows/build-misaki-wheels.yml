@@ -30,20 +30,18 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-
       - name: Install build dependencies
         run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake curl git
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          source $HOME/.cargo/env
           python -m pip install --upgrade pip setuptools wheel
-          pip install maturin
 
       - name: Build wheel
         run: |
           mkdir -p wheelhouse
-          pip wheel --no-deps --wheel-dir wheelhouse "misaki[en,ja,ko,zh]==${{ github.event.inputs.version }}"
+          pip wheel --wheel-dir wheelhouse "misaki[en,ja,ko,zh]==${{ github.event.inputs.version }}"
 
       - name: Upload AMD64 Wheels
         uses: actions/upload-artifact@v4
