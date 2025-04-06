@@ -74,11 +74,11 @@ jobs:
         run: ls -R artifacts
 
       - name: Create Release and Upload Wheels
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v2 # Revert back to v2 for consistency
         with:
           tag_name: underthesea-v${{ github.event.inputs.version }}-linux-arm64 # Specific tag
           name: Underthesea v${{ github.event.inputs.version }} Linux ARM64 Wheels # Specific name
           files: artifacts/*/*.whl # Upload all .whl files from all subdirectories in artifacts
-          make_latest: true # Mark as latest if desired, or false if these are supplementary
+          make_latest: true # Valid input for v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
