@@ -54,6 +54,9 @@ jobs:
           # Use --no-build-isolation since we've installed maturin and Rust already
           pip wheel --no-build-isolation --wheel-dir wheelhouse underthesea==${{ github.event.inputs.version }}
 
+      - name: List wheelhouse contents # Debugging step
+        run: ls -R wheelhouse
+
       - name: Upload Linux Wheels Artifact
         uses: actions/upload-artifact@v4 # Corrected indentation
         with: # Corrected indentation
@@ -78,7 +81,7 @@ jobs:
         with:
           tag_name: underthesea-v${{ github.event.inputs.version }}-linux-arm64 # Specific tag
           name: Underthesea v${{ github.event.inputs.version }} Linux ARM64 Wheels # Specific name
-          files: artifacts/*/*.whl # Upload all .whl files from all subdirectories in artifacts
+          files: artifacts/underthesea-linux-wheels-*/*.whl # Be specific about which wheels to upload from artifacts
           make_latest: true # Valid input for v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
