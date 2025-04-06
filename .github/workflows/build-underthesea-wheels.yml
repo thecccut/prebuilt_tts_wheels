@@ -55,10 +55,10 @@ jobs:
           pip wheel --no-build-isolation --wheel-dir wheelhouse underthesea==${{ github.event.inputs.version }}
 
       - name: Upload Linux Wheels Artifact
-        uses: actions/upload-artifact@v4
-        with:
+        uses: actions/upload-artifact@v4 # Corrected indentation
+        with: # Corrected indentation
           name: underthesea-linux-wheels-${{ matrix.python-version }}
-          path: wheelhouse/*.whl
+          path: wheelhouse/underthesea*.whl # Only upload underthesea and underthesea_core wheels
 
   release:
     name: Create GitHub Release for Linux ARM64
