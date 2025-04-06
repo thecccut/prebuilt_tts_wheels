@@ -79,7 +79,7 @@ jobs:
       - name: Prepare release assets
         run: |
           mkdir release_assets
-          cp artifacts/underthesea-linux-wheels-*/*.whl release_assets/
+          cp -f artifacts/underthesea-linux-wheels-*/*.whl release_assets/ # Use -f to force overwrite duplicates
           echo "--- Contents of release_assets ---"
           ls -l release_assets
           echo "----------------------------------"
