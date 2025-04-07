@@ -28,8 +28,14 @@ RUN mkdir -p /wheelhouse
 RUN cmake --version
 RUN env
 
-# Build wheel with all extras (including dependencies)
-RUN pip wheel --wheel-dir /wheelhouse "misaki[en,ja,ko,zh,vi]==${PACKAGE_VERSION}"
+# Install pip-tools for dependency resolution
+RUN pip install pip-tools
+
+# First, download and build misaki with all its dependencies
+RUN pip wheel --wheel-dir /wheelhouse "misaki[en,ja,ko,zh]==${PACKAGE_VERSION}"
+
+# Now, instead of discarding dependencies, keep them all
+RUN find /wheelhouse -type f -name "*.whl" | sort > /wheelhouse/wheel_list.txt
 
 # Set output directory
 WORKDIR /wheelhouse

@@ -1,0 +1,195 @@
+name: Build All Misaki Dependencies
+
+on:
+  workflow_dispatch: # Allow manual triggering
+    inputs:
+      version:
+        description: 'Version of Misaki to build'
+        required: true
+        default: '0.9.4'
+
+# Add permissions needed to create releases
+permissions:
+  contents: write
+
+jobs:
+  build_amd64_deps:
+    name: Build AMD64 Dependencies
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential curl git gnupg lsb-release wget
+          wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | sudo tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
+          echo "deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/kitware.list
+          sudo apt-get update
+          sudo apt-get install -y cmake
+          cmake --version
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          source $HOME/.cargo/env
+          python -m pip install --upgrade pip setuptools wheel pip-tools
+
+      - name: Build all wheels and dependencies
+        run: |
+          mkdir -p wheelhouse
+          # Download and build misaki with all its dependencies
+          pip wheel --wheel-dir wheelhouse "misaki[en,ja,ko,zh,vi]==${{ github.event.inputs.version }}"
+          # List all wheels for debugging
+          find wheelhouse -name "*.whl" | sort > wheelhouse/wheel_list.txt
+          echo "All wheels built:"
+          cat wheelhouse/wheel_list.txt
+          echo "Total wheel count: $(cat wheelhouse/wheel_list.txt | wc -l)"
+
+      - name: Upload AMD64 Dependencies
+        uses: actions/upload-artifact@v4
+        with:
+          name: misaki-all-deps-amd64-py${{ matrix.python-version }}
+          path: wheelhouse/*.whl
+
+  build_arm64_deps:
+    name: Build ARM64 Dependencies
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ARM64 dependencies in Docker
+        run: |
+          mkdir -p wheelhouse
+          docker buildx build --platform linux/arm64 \
+            --build-arg PYTHON_VERSION=${{ matrix.python-version }} \
+            --build-arg PACKAGE_VERSION=${{ github.event.inputs.version }} \
+            -f .github/workflows/misaki-deps.Dockerfile \
+            --load \
+            -t misaki-deps-builder .
+          docker run --rm \
+            -v $(pwd)/wheelhouse:/wheelhouse \
+            -e PACKAGE_VERSION=${{ github.event.inputs.version }} \
+            misaki-deps-builder
+
+      - name: Upload ARM64 Dependencies
+        uses: actions/upload-artifact@v4
+        with:
+          name: misaki-all-deps-arm64-py${{ matrix.python-version }}
+          path: wheelhouse/*.whl
+
+  create_deps_release:
+    name: Create Dependencies Release
+    needs: [build_amd64_deps, build_arm64_deps]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List downloaded files
+        run: |
+          find artifacts -type f -name "*.whl" | sort
+          echo "Total wheel count: $(find artifacts -type f -name "*.whl" | wc -l)"
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release_assets
+          cp -f artifacts/misaki-all-deps-*/*.whl release_assets/ || true
+          echo "--- Contents of release_assets ---"
+          ls -la release_assets
+          echo "Total wheel count: $(find release_assets -type f -name "*.whl" | wc -l)"
+          echo "----------------------------------"
+
+      - name: Create Release and Upload All Dependencies
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: misaki-deps-v${{ github.event.inputs.version }}
+          name: Misaki v${{ github.event.inputs.version }} All Dependencies
+          files: release_assets/*.whl
+          body: |
+            # Misaki Dependencies
+
+            This release contains all dependencies required by Misaki v${{ github.event.inputs.version }} for both ARM64 and AMD64 architectures.
+            
+            These pre-built wheels make it easy to install Misaki and all its dependencies in environments where compilation might be difficult or time-consuming.
+
+            ## Usage in Dockerfile
+            ```dockerfile
+            # Download and install all pre-built wheels
+            COPY --from=ghcr.io/your-org/misaki-deps:${{ github.event.inputs.version }} /wheelhouse /wheelhouse
+            RUN pip install --no-index --find-links=/wheelhouse misaki[en,ja,ko,zh,vi]==${{ github.event.inputs.version }}
+            ```
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build_and_push_container:
+    name: Push Dependencies Container
+    needs: [build_amd64_deps, build_arm64_deps]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare wheels directory
+        run: |
+          mkdir -p wheelhouse
+          cp -f artifacts/misaki-all-deps-*/*.whl wheelhouse/ || true
+          echo "Total wheel count: $(find wheelhouse -type f -name "*.whl" | wc -l)"
+          
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Generate Dockerfile for container image
+        run: |
+          cat > Dockerfile.wheels << EOL
+          FROM scratch
+          COPY wheelhouse /wheelhouse
+          EOL
+          
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Build and push container image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.wheels
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/misaki-deps:${{ github.event.inputs.version }}
+            ghcr.io/${{ github.repository_owner }}/misaki-deps:latest
+          platforms: linux/amd64,linux/arm64
