@@ -21,23 +21,15 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /build
 RUN mkdir -p /wheelhouse
 
-# Debugging: Print CMake version and environment variables
-RUN cmake --version
-RUN env
+# Set environment variables for build
+ENV CMAKE_POLICY_VERSION_MINIMUM=3.5
+ENV PYTHONPATH=/usr/local/lib/python3.9/site-packages
+ENV PIP_NO_BUILD_ISOLATION=0
 
 # Install maturin for Rust package building
 RUN pip install maturin
 
-# Set CMake policy version to fix pyopenjtalk build issue
-ENV CMAKE_POLICY_VERSION_MINIMUM=3.5
-
-# Try to install pyopenjtalk first with the environment variable set
-RUN pip wheel --wheel-dir /wheelhouse pyopenjtalk==0.4.0 || echo "Pyopenjtalk wheel build failed, will try with full misaki install"
-
-# Install underthesea-core with maturin explicitly
-RUN pip wheel --wheel-dir /wheelhouse underthesea-core==1.0.4 || echo "underthesea-core wheel build failed, will try with full misaki install"
-
-# Build wheel with all extras (including dependencies)
+# Build misaki and all its dependencies in one go
 RUN pip wheel --wheel-dir /wheelhouse "misaki[en,ja,ko,zh,vi]==${PACKAGE_VERSION}"
 
 # Set output directory
