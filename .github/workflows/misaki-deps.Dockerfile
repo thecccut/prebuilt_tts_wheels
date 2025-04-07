@@ -28,8 +28,15 @@ RUN env
 # Install pip-tools for dependency resolution
 RUN pip install pip-tools
 
+# Set CMake policy version to fix pyopenjtalk build issue
+ENV CMAKE_POLICY_VERSION_MINIMUM=3.5
+
 # First, download and build misaki with all its dependencies
-RUN pip wheel --wheel-dir /wheelhouse "misaki[en,ja,ko,zh]==${PACKAGE_VERSION}"
+# Try to install pyopenjtalk first with the environment variable set
+RUN pip wheel --wheel-dir /wheelhouse pyopenjtalk==0.4.0 || echo "Pyopenjtalk wheel build failed, will try with full misaki install"
+
+# Full misaki build with all dependencies
+RUN pip wheel --wheel-dir /wheelhouse "misaki[en,ja,ko,zh,vi]==${PACKAGE_VERSION}"
 
 # Now, instead of discarding dependencies, keep them all
 RUN find /wheelhouse -type f -name "*.whl" | sort > /wheelhouse/wheel_list.txt

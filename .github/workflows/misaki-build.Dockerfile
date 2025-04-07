@@ -25,6 +25,12 @@ RUN mkdir -p /wheelhouse
 RUN cmake --version
 RUN env
 
+# Set CMake policy version to fix pyopenjtalk build issue
+ENV CMAKE_POLICY_VERSION_MINIMUM=3.5
+
+# Try to install pyopenjtalk first with the environment variable set
+RUN pip wheel --wheel-dir /wheelhouse pyopenjtalk==0.4.0 || echo "Pyopenjtalk wheel build failed, will try with full misaki install"
+
 # Build wheel with all extras (including dependencies)
 RUN pip wheel --wheel-dir /wheelhouse "misaki[en,ja,ko,zh,vi]==${PACKAGE_VERSION}"
 

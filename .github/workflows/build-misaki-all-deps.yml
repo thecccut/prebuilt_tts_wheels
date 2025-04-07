@@ -40,8 +40,12 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel pip-tools
 
       - name: Build all wheels and dependencies
+        env:
+          CMAKE_POLICY_VERSION_MINIMUM: 3.5
         run: |
           mkdir -p wheelhouse
+          # Build pyopenjtalk first to handle CMake policy issue
+          pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0 || echo "Pyopenjtalk wheel build failed, will try with full misaki install"
           # Download and build misaki with all its dependencies
           pip wheel --wheel-dir wheelhouse "misaki[en,ja,ko,zh,vi]==${{ github.event.inputs.version }}"
           # List all wheels for debugging

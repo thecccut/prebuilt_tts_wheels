@@ -33,20 +33,21 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential curl git gnupg lsb-release wget
-          wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | sudo tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
-          echo "deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/kitware.list
-          sudo apt-get update
-          sudo apt-get install -y cmake
+          sudo apt-get install -y build-essential curl git gnupg lsb-release wget cmake
           cmake --version
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           source $HOME/.cargo/env
           python -m pip install --upgrade pip setuptools wheel
 
       - name: Build wheel
+        env:
+          CMAKE_POLICY_VERSION_MINIMUM: 3.5
         run: |
           mkdir -p wheelhouse
-          pip wheel --wheel-dir wheelhouse "misaki[en,ja,ko,zh]==${{ github.event.inputs.version }}"
+          # Build pyopenjtalk first to handle CMake policy issue
+          pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0 || echo "Pyopenjtalk wheel build failed, will try with full misaki install"
+          # Build the full package with all extras
+          pip wheel --wheel-dir wheelhouse "misaki[en,ja,ko,zh,vi]==${{ github.event.inputs.version }}"
 
       - name: Upload AMD64 Wheels
         uses: actions/upload-artifact@v4
