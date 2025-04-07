@@ -37,7 +37,7 @@ jobs:
           cmake --version
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           source $HOME/.cargo/env
-          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install --upgrade pip setuptools wheel maturin
 
       - name: Build wheel
         env:
@@ -46,6 +46,8 @@ jobs:
           mkdir -p wheelhouse
           # Build pyopenjtalk first to handle CMake policy issue
           pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0 || echo "Pyopenjtalk wheel build failed, will try with full misaki install"
+          # Build underthesea-core with maturin explicitly
+          pip wheel --wheel-dir wheelhouse underthesea-core==1.0.4 || echo "underthesea-core wheel build failed, will try with full misaki install"
           # Build the full package with all extras
           pip wheel --wheel-dir wheelhouse "misaki[en,ja,ko,zh,vi]==${{ github.event.inputs.version }}"
 
