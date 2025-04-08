@@ -193,8 +193,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.PAT_PACKAGES }}  # Use PAT instead of GITHUB_TOKEN
           
       - name: Generate Dockerfiles
         run: |
