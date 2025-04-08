@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11"]
+        python-version: ["3.10"]  # Only build for Python 3.10
 
     steps:
       - name: Checkout repository
@@ -68,7 +68,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11"]
+        python-version: ["3.10"]  # Only build for Python 3.10
 
     steps:
       - name: Checkout repository
@@ -155,7 +155,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.9", "3.10", "3.11"]
+        python-version: ["3.10"]  # Only build for Python 3.10
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -165,19 +165,29 @@ jobs:
         with:
           path: artifacts
 
-      - name: Prepare wheels directories
+      - name: Prepare AMD64 wheels directory
+        id: amd64-wheels
         run: |
-          # Create separate directories for AMD64 and ARM64 wheels for this Python version
           mkdir -p wheelhouse-amd64-py${{ matrix.python-version }}
-          mkdir -p wheelhouse-arm64-py${{ matrix.python-version }}
-          
-          # Copy AMD64 wheels for this Python version
           cp -f artifacts/misaki-all-deps-amd64-py${{ matrix.python-version }}/*.whl wheelhouse-amd64-py${{ matrix.python-version }}/ || true
-          echo "AMD64 wheel count for Python ${{ matrix.python-version }}: $(find wheelhouse-amd64-py${{ matrix.python-version }} -type f -name "*.whl" | wc -l)"
+          AMD64_COUNT=$(find wheelhouse-amd64-py${{ matrix.python-version }} -type f -name "*.whl" | wc -l)
+          echo "count=${AMD64_COUNT}" >> $GITHUB_OUTPUT
+          echo "::notice title=AMD64 Wheels::Found ${AMD64_COUNT} wheels for Python ${{ matrix.python-version }}"
           
-          # Copy ARM64 wheels for this Python version
+      - name: Prepare ARM64 wheels directory
+        id: arm64-wheels
+        run: |
+          mkdir -p wheelhouse-arm64-py${{ matrix.python-version }}
           cp -f artifacts/misaki-all-deps-arm64-py${{ matrix.python-version }}/*.whl wheelhouse-arm64-py${{ matrix.python-version }}/ || true
-          echo "ARM64 wheel count for Python ${{ matrix.python-version }}: $(find wheelhouse-arm64-py${{ matrix.python-version }} -type f -name "*.whl" | wc -l)"
+          ARM64_COUNT=$(find wheelhouse-arm64-py${{ matrix.python-version }} -type f -name "*.whl" | wc -l)
+          echo "count=${ARM64_COUNT}" >> $GITHUB_OUTPUT
+          if [ "${ARM64_COUNT}" -gt 0 ]; then
+            echo "found=true" >> $GITHUB_OUTPUT
+            echo "::notice title=ARM64 Wheels::Found ${ARM64_COUNT} wheels for Python ${{ matrix.python-version }}"
+          else
+            echo "found=false" >> $GITHUB_OUTPUT
+            echo "::warning title=ARM64 Wheels::No wheels found for Python ${{ matrix.python-version }}"
+          fi
           
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -188,13 +198,11 @@ jobs:
           
       - name: Generate Dockerfiles
         run: |
-          # Create Dockerfile for AMD64
           cat > Dockerfile.amd64 << EOL
           FROM scratch
           COPY wheelhouse-amd64-py${{ matrix.python-version }} /wheelhouse
           EOL
           
-          # Create Dockerfile for ARM64
           cat > Dockerfile.arm64 << EOL
           FROM scratch
           COPY wheelhouse-arm64-py${{ matrix.python-version }} /wheelhouse
@@ -203,7 +211,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         
-      # Build and push AMD64 image
       - name: Build and push AMD64 image
         uses: docker/build-push-action@v5
         with:
@@ -213,19 +220,8 @@ jobs:
           tags: ghcr.io/${{ github.repository_owner }}/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}-amd64
           platforms: linux/amd64
       
-      # Check if ARM64 wheels were found
-      - name: Check ARM64 wheels
-        id: check-arm64
-        run: |
-          if [ "$(find wheelhouse-arm64-py${{ matrix.python-version }} -type f -name "*.whl" | wc -l)" -gt 0 ]; then
-            echo "arm64_wheels_found=true" >> $GITHUB_OUTPUT
-          else
-            echo "arm64_wheels_found=false" >> $GITHUB_OUTPUT
-          fi
-      
-      # Build and push ARM64 image if wheels exist
       - name: Build and push ARM64 image
-        if: steps.check-arm64.outputs.arm64_wheels_found == 'true'
+        if: steps.arm64-wheels.outputs.found == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -234,21 +230,17 @@ jobs:
           tags: ghcr.io/${{ github.repository_owner }}/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}-arm64
           platforms: linux/arm64
           
-      # Create and push manifest if ARM64 wheels were found
       - name: Create and push manifest with AMD64 and ARM64
-        if: steps.check-arm64.outputs.arm64_wheels_found == 'true'
+        if: steps.arm64-wheels.outputs.found == 'true'
         run: |
-          # Create and push version manifest for this Python version
           docker manifest create ghcr.io/${{ github.repository_owner }}/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }} \
             ghcr.io/${{ github.repository_owner }}/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}-amd64 \
             ghcr.io/${{ github.repository_owner }}/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}-arm64
           docker manifest push ghcr.io/${{ github.repository_owner }}/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}
       
-      # Fallback: Just use AMD64 image as the main image if no ARM64 wheels
       - name: Create and push manifest with AMD64 only
-        if: steps.check-arm64.outputs.arm64_wheels_found == 'false'
+        if: steps.arm64-wheels.outputs.found == 'false'
         run: |
-          # Create and push version manifest for this Python version
           docker manifest create ghcr.io/${{ github.repository_owner }}/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }} \
             ghcr.io/${{ github.repository_owner }}/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}-amd64
           docker manifest push ghcr.io/${{ github.repository_owner }}/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}
