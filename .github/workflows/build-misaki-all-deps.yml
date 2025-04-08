@@ -8,11 +8,6 @@ on:
         required: true
         default: '0.9.4'
 
-# Update permissions to include packages: write
-permissions:
-  contents: write
-  packages: write
-
 jobs:
   build_amd64_deps:
     name: Build AMD64 Dependencies
@@ -107,6 +102,8 @@ jobs:
     name: Create Dependencies Release
     needs: [build_amd64_deps, build_arm64_deps]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # For release creation
     steps:
       - name: Download all wheel artifacts
         uses: actions/download-artifact@v4
@@ -154,6 +151,8 @@ jobs:
     name: Push Dependencies Container
     needs: [build_amd64_deps, build_arm64_deps]
     runs-on: ubuntu-latest
+    permissions:
+      packages: write  # For pushing to GHCR
     strategy:
       matrix:
         python-version: ["3.10"]  # Only build for Python 3.10
@@ -194,7 +193,7 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
+          username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           
       - name: Generate Dockerfiles
@@ -220,6 +219,10 @@ jobs:
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}-amd64
           platforms: linux/amd64
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.description=Pre-built wheels for Misaki TTS
+            org.opencontainers.image.licenses=MIT
       
       - name: Build and push ARM64 image
         if: steps.arm64-wheels.outputs.found == 'true'
@@ -230,6 +233,10 @@ jobs:
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}-arm64
           platforms: linux/arm64
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.description=Pre-built wheels for Misaki TTS
+            org.opencontainers.image.licenses=MIT
           
       - name: Create and push manifest with AMD64 and ARM64
         if: steps.arm64-wheels.outputs.found == 'true'
