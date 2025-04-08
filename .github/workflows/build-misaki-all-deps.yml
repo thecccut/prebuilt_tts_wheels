@@ -217,7 +217,7 @@ jobs:
           context: .
           file: Dockerfile.amd64
           push: true
-          tags: ghcr.io/${{ github.repository }}/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}-amd64
+          tags: ghcr.io/remsky/prebuilt_tts_wheels/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}-amd64
           platforms: linux/amd64
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
@@ -231,7 +231,7 @@ jobs:
           context: .
           file: Dockerfile.arm64
           push: true
-          tags: ghcr.io/${{ github.repository }}/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}-arm64
+          tags: ghcr.io/remsky/prebuilt_tts_wheels/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}-arm64
           platforms: linux/arm64
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
@@ -241,14 +241,14 @@ jobs:
       - name: Create and push manifest with AMD64 and ARM64
         if: steps.arm64-wheels.outputs.found == 'true'
         run: |
-          docker manifest create ghcr.io/${{ github.repository }}/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }} \
-            ghcr.io/${{ github.repository }}/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}-amd64 \
-            ghcr.io/${{ github.repository }}/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}-arm64
-          docker manifest push ghcr.io/${{ github.repository }}/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}
+          docker manifest create ghcr.io/remsky/prebuilt_tts_wheels/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }} \
+            ghcr.io/remsky/prebuilt_tts_wheels/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}-amd64 \
+            ghcr.io/remsky/prebuilt_tts_wheels/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}-arm64
+          docker manifest push ghcr.io/remsky/prebuilt_tts_wheels/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}
       
       - name: Create and push manifest with AMD64 only
         if: steps.arm64-wheels.outputs.found == 'false'
         run: |
-          docker manifest create ghcr.io/${{ github.repository }}/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }} \
-            ghcr.io/${{ github.repository }}/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}-amd64
-          docker manifest push ghcr.io/${{ github.repository }}/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}
+          docker manifest create ghcr.io/remsky/prebuilt_tts_wheels/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }} \
+            ghcr.io/remsky/prebuilt_tts_wheels/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}-amd64
+          docker manifest push ghcr.io/remsky/prebuilt_tts_wheels/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}
