@@ -26,8 +26,8 @@ ENV CMAKE_POLICY_VERSION_MINIMUM=3.5
 ENV PYTHONPATH=/usr/local/lib/python3.9/site-packages
 ENV PIP_NO_BUILD_ISOLATION=0
 
-# Install maturin for Rust package building
-RUN pip install maturin
+# Install maturin and numpy for Rust package building and dependencies
+RUN pip install maturin numpy
 
 # Build misaki and all its dependencies in one go
 RUN pip wheel --wheel-dir /wheelhouse "misaki[en,ja,ko,zh,vi]==${PACKAGE_VERSION}"
