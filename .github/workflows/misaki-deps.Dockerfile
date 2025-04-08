@@ -27,8 +27,8 @@ ENV PYTHONPATH=/usr/local/lib/python3.9/site-packages
 ENV PIP_NO_BUILD_ISOLATION=0
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-# Install maturin and numpy for Rust package building and dependencies
-RUN pip install maturin numpy
+# Install maturin, numpy and Cython for building dependencies
+RUN pip install maturin numpy Cython
 
 # Build misaki and all its dependencies in one go
 # Note: We need to source the cargo env file in the same command
