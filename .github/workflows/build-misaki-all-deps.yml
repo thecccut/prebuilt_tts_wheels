@@ -188,6 +188,12 @@ jobs:
             echo "found=false" >> $GITHUB_OUTPUT
             echo "::warning title=ARM64 Wheels::No wheels found for Python ${{ matrix.python-version }}"
           fi
+
+      - name: Set up QEMU # Add QEMU setup
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx # Add Buildx setup
+        uses: docker/setup-buildx-action@v3
           
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -195,65 +201,20 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.PAT_PACKAGES }}  # Use PAT instead of GITHUB_TOKEN
-          
-      - name: Generate Dockerfiles
-        run: |
-          cat > Dockerfile.amd64 << EOL
-          FROM scratch
-          COPY wheelhouse-amd64-py${{ matrix.python-version }} /wheelhouse
-          EOL
-          
-          cat > Dockerfile.arm64 << EOL
-          FROM scratch
-          COPY wheelhouse-arm64-py${{ matrix.python-version }} /wheelhouse
-          EOL
-          
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-          
-      - name: Build and push AMD64 image
-        id: build-amd64 # Add ID here
+
+      - name: Build and push multi-platform image
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Dockerfile.amd64
+          file: .github/workflows/misaki-deps-multiarch.Dockerfile # Use the new Dockerfile
+          platforms: linux/amd64,linux/arm64 # Build both platforms
           push: true
-          tags: ghcr.io/remsky/prebuilt_tts_wheels/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}-amd64
-          platforms: linux/amd64
+          tags: ghcr.io/remsky/prebuilt_tts_wheels/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }} # Push the final tag
+          build-args: | # Pass Python version to Dockerfile
+            PYTHON_VERSION=${{ matrix.python-version }}
+          cache-from: type=gha # Enable GHA cache read
+          cache-to: type=gha,mode=max # Enable GHA cache write
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.description=Pre-built wheels for Misaki TTS
             org.opencontainers.image.licenses=MIT
-      
-      - name: Build and push ARM64 image
-        id: build-arm64 # Add ID here
-        if: steps.arm64-wheels.outputs.found == 'true'
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: Dockerfile.arm64
-          push: true
-          tags: ghcr.io/remsky/prebuilt_tts_wheels/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}-arm64
-          platforms: linux/arm64
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.description=Pre-built wheels for Misaki TTS
-            org.opencontainers.image.licenses=MIT
-          
-      - name: Create and push manifest with AMD64 and ARM64
-        if: steps.arm64-wheels.outputs.found == 'true'
-        run: |
-          echo "Creating manifest with AMD64 digest: ${{ steps.build-amd64.outputs.digest }}"
-          echo "Creating manifest with ARM64 digest: ${{ steps.build-arm64.outputs.digest }}"
-          docker manifest create ghcr.io/remsky/prebuilt_tts_wheels/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }} \
-            ${{ steps.build-amd64.outputs.digest }} \
-            ${{ steps.build-arm64.outputs.digest }}
-          docker manifest push ghcr.io/remsky/prebuilt_tts_wheels/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}
-      
-      - name: Create and push manifest with AMD64 only
-        if: steps.arm64-wheels.outputs.found == 'false'
-        run: |
-          echo "Creating manifest with AMD64 digest: ${{ steps.build-amd64.outputs.digest }}"
-          docker manifest create ghcr.io/remsky/prebuilt_tts_wheels/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }} \
-            ${{ steps.build-amd64.outputs.digest }}
-          docker manifest push ghcr.io/remsky/prebuilt_tts_wheels/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }}
