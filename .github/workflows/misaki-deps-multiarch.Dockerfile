@@ -2,13 +2,13 @@
 ARG PYTHON_VERSION=3.10
 ARG TARGETPLATFORM
 
-# Select the correct wheelhouse based on the target platform
-FROM scratch as wheelhouse-selector
-ARG PYTHON_VERSION # Re-declare ARG here
-COPY wheelhouse-amd64-py${PYTHON_VERSION} /wheelhouse-amd64
-COPY wheelhouse-arm64-py${PYTHON_VERSION} /wheelhouse-arm64
+FROM scratch AS final-amd64
+ARG PYTHON_VERSION
+COPY wheelhouse-amd64-py${PYTHON_VERSION} /wheelhouse
 
-# Final stage: Copy the selected wheelhouse
-FROM scratch
-ARG TARGETPLATFORM
-COPY --from=wheelhouse-selector /wheelhouse-${TARGETPLATFORM#linux/} /wheelhouse
+FROM scratch AS final-arm64
+ARG PYTHON_VERSION
+COPY wheelhouse-arm64-py${PYTHON_VERSION} /wheelhouse
+
+# Select the final image based on the target platform
+FROM final-${TARGETPLATFORM#linux/} AS final
