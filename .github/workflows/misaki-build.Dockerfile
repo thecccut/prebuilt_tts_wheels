@@ -2,6 +2,7 @@ FROM python:3.10-slim
 
 ARG PYTHON_VERSION
 ARG PACKAGE_VERSION
+ENV PACKAGE_VERSION=${PACKAGE_VERSION}
 
 # Install build dependencies (using Debian's package for CMake)
 RUN apt-get update && apt-get install -y \
@@ -32,7 +33,8 @@ RUN pip install maturin numpy Cython
 
 # Build misaki and all its dependencies in one go
 # Note: We need to source the cargo env file in the same command
-RUN . $HOME/.cargo/env && \
+RUN if [ -z "$PACKAGE_VERSION" ]; then echo "PACKAGE_VERSION is required" && exit 1; fi && \
+    . $HOME/.cargo/env && \
     pip wheel --wheel-dir /wheelhouse "misaki[en,ja,ko,zh,vi]==${PACKAGE_VERSION}"
 
 # Set output directory
