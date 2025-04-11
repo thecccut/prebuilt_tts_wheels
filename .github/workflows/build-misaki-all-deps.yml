@@ -87,6 +87,9 @@ jobs:
         run: |
           echo "Version parameter: ${{ github.event.inputs.version }}"
           echo "PACKAGE_VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+          # Print relevant environment variables for debugging
+          echo "Environment variables:"
+          printenv | grep VERSION
 
       - name: Build ARM64 dependencies in Docker
         env:

@@ -3,6 +3,10 @@ ARG PACKAGE_VERSION
 
 FROM python:${PYTHON_VERSION}-slim
 
+# Make sure PACKAGE_VERSION is available in the build environment
+ARG PACKAGE_VERSION
+ENV PACKAGE_VERSION=${PACKAGE_VERSION}
+
 # Install build dependencies (using Debian's package for CMake)
 RUN apt-get update && apt-get install -y \
     build-essential \
