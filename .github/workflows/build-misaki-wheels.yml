@@ -77,8 +77,20 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build ARM64 wheel in Docker
+      - name: Debug environment
         run: |
+          echo "Debugging environment variables:"
+          echo "github.event.inputs.version: ${{ github.event.inputs.version }}"
+          echo "PACKAGE_VERSION environment: $PACKAGE_VERSION"
+          printenv | grep VERSION
+
+      - name: Build ARM64 wheel in Docker
+        env:
+          PACKAGE_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          # Print Docker version for debugging
+          docker version
+          
           mkdir -p wheelhouse
           docker buildx build --platform linux/arm64 \
             --build-arg PYTHON_VERSION=${{ matrix.python-version }} \
