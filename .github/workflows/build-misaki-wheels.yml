@@ -77,16 +77,24 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Set environment variables
+        run: |
+          echo "Setting required environment variables"
+          # This explicitly sets PACKAGE_VERSION in the GitHub environment
+          echo "PACKAGE_VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+      
       - name: Debug environment
         run: |
           echo "Debugging environment variables:"
           echo "github.event.inputs.version: ${{ github.event.inputs.version }}"
-          echo "PACKAGE_VERSION environment: $PACKAGE_VERSION"
-          printenv | grep VERSION
+          # Use env directly because the variable should now be available
+          echo "PACKAGE_VERSION: ${{ env.PACKAGE_VERSION }}"
+          # List all environment variables (without grep which can fail)
+          echo "All environment variables:"
+          printenv
 
       - name: Build ARM64 wheel in Docker
-        env:
-          PACKAGE_VERSION: ${{ github.event.inputs.version }}
+        # Use the environment variable that was properly set
         run: |
           # Print Docker version for debugging
           docker version
@@ -94,13 +102,13 @@ jobs:
           mkdir -p wheelhouse
           docker buildx build --platform linux/arm64 \
             --build-arg PYTHON_VERSION=${{ matrix.python-version }} \
-            --build-arg PACKAGE_VERSION=${{ github.event.inputs.version }} \
+            --build-arg PACKAGE_VERSION=${{ env.PACKAGE_VERSION }} \
             -f .github/workflows/misaki-build.Dockerfile \
             --load \
             -t misaki-builder .
           docker run --rm \
             -v $(pwd)/wheelhouse:/wheelhouse \
-            -e PACKAGE_VERSION=${{ github.event.inputs.version }} \
+            -e PACKAGE_VERSION=${{ env.PACKAGE_VERSION }} \
             misaki-builder
 
       - name: Upload ARM64 Wheels
