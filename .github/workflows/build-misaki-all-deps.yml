@@ -83,18 +83,29 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Debug version parameter
+        run: |
+          echo "Version parameter: ${{ github.event.inputs.version }}"
+          echo "PACKAGE_VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+
       - name: Build ARM64 dependencies in Docker
+        env:
+          PACKAGE_VERSION: ${{ github.event.inputs.version }}
         run: |
           mkdir -p wheelhouse
+          # First build the image
           docker buildx build --platform linux/arm64 \
             --build-arg PYTHON_VERSION=${{ matrix.python-version }} \
             --build-arg PACKAGE_VERSION=${{ github.event.inputs.version }} \
             -f .github/workflows/misaki-deps.Dockerfile \
-            --output type=local,dest=./wheelhouse-arm64 \
-            .
-          # Move wheels to expected location
-          mkdir -p wheelhouse
-          mv wheelhouse-arm64/wheelhouse/* wheelhouse/ || true
+            --load \
+            -t misaki-deps-builder .
+          
+          # Then run it with the environment variable
+          docker run --rm \
+            -v $(pwd)/wheelhouse:/wheelhouse \
+            -e PACKAGE_VERSION=${{ github.event.inputs.version }} \
+            misaki-deps-builder
           
       - name: List built wheels
         run: |

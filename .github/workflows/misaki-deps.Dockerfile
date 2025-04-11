@@ -23,7 +23,7 @@ RUN mkdir -p /wheelhouse
 
 # Set environment variables for build
 ENV CMAKE_POLICY_VERSION_MINIMUM=3.5
-ENV PYTHONPATH=/usr/local/lib/python3.9/site-packages
+ENV PYTHONPATH=/usr/local/lib/python3.10/site-packages
 ENV PIP_NO_BUILD_ISOLATION=0
 ENV PATH="/root/.cargo/bin:${PATH}"
 
