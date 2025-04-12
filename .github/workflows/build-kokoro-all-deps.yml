@@ -122,7 +122,7 @@ jobs:
 
   build_arm64_deps:
     name: Build ARM64 Dependencies
-    runs-on: ubuntu-latest-arm64  # Use native ARM64 runner
+    runs-on: ubuntu-22.04-arm  # Updated to use the new ARM64 runner label
     strategy:
       fail-fast: false
       matrix:
