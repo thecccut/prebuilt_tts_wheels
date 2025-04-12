@@ -1,5 +1,5 @@
 # Use Python 3.10 slim as the base image
-FROM python:3.10-slim AS final
+FROM python:3.11-slim AS final
 
 # Set non-interactive frontend
 ENV DEBIAN_FRONTEND=noninteractive

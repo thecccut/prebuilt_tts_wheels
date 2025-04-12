@@ -1,0 +1,332 @@
+name: Build Kokoro Dependencies Per Language
+
+on:
+  workflow_dispatch: # Allow manual triggering
+    inputs:
+      version:
+        description: 'Version of Kokoro to build'
+        required: true
+        default: '0.3.0'
+      language:
+        description: 'Language to build (en, ja, zh, ko, fr, de, es, ru, pt, or all)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - en
+          - ja
+          - zh
+          - ko
+          - fr
+          - de
+          - es
+          - ru
+          - pt
+      gpu_support:
+        description: 'Include GPU/CUDA support'
+        required: true
+        default: 'cpu'
+        type: choice
+        options:
+          - cpu
+          - gpu
+
+# Add permissions needed for package uploads and releases
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build_amd64_deps:
+    name: Build AMD64 Dependencies
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10"]  # Only build for Python 3.10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential curl git gnupg lsb-release wget cmake
+          cmake --version
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          source $HOME/.cargo/env
+          python -m pip install --upgrade pip setuptools wheel pip-tools maturin
+
+      - name: Build all wheels and dependencies
+        env:
+          CMAKE_POLICY_VERSION_MINIMUM: 3.5
+          LANGUAGE: ${{ github.event.inputs.language }}
+          GPU_SUPPORT: ${{ github.event.inputs.gpu_support }}
+        run: |
+          mkdir -p wheelhouse
+          
+          # Configure the appropriate PyTorch installation based on GPU support
+          if [ "$GPU_SUPPORT" = "gpu" ]; then
+            echo "Building with GPU support - including CUDA dependencies"
+            pip install --no-cache-dir torch
+          else
+            echo "Building CPU-only version - excluding CUDA dependencies"
+            pip install --no-cache-dir torch --extra-index-url https://download.pytorch.org/whl/cpu
+          fi
+          
+          # Build pyopenjtalk first to handle CMake policy issue
+          pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0 || echo "Pyopenjtalk wheel build failed, will try with full kokoro install"
+          
+          # Download and build kokoro with selected language dependencies
+          if [ "$LANGUAGE" = "all" ]; then
+            pip wheel --wheel-dir wheelhouse "kokoro[all]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "en" ]; then
+            pip wheel --wheel-dir wheelhouse "kokoro[en]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "ja" ]; then
+            pip wheel --wheel-dir wheelhouse "kokoro[ja]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "zh" ]; then
+            pip wheel --wheel-dir wheelhouse "kokoro[zh]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "ko" ]; then
+            pip wheel --wheel-dir wheelhouse "kokoro[ko]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "fr" ]; then
+            pip wheel --wheel-dir wheelhouse "kokoro[fr]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "de" ]; then
+            pip wheel --wheel-dir wheelhouse "kokoro[de]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "es" ]; then
+            pip wheel --wheel-dir wheelhouse "kokoro[es]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "ru" ]; then
+            pip wheel --wheel-dir wheelhouse "kokoro[ru]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "pt" ]; then
+            pip wheel --wheel-dir wheelhouse "kokoro[pt]==${{ github.event.inputs.version }}"
+          else
+            echo "Unsupported language: $LANGUAGE" && exit 1
+          fi
+          # List all wheels for debugging
+          find wheelhouse -name "*.whl" | sort > wheelhouse/wheel_list.txt
+          echo "All wheels built:"
+          cat wheelhouse/wheel_list.txt
+          echo "Total wheel count: $(cat wheelhouse/wheel_list.txt | wc -l)"
+
+      - name: Upload AMD64 Dependencies
+        uses: actions/upload-artifact@v4
+        with:
+          name: kokoro-all-deps-amd64-py${{ matrix.python-version }}
+          path: wheelhouse/*.whl
+
+  build_arm64_deps:
+    name: Build ARM64 Dependencies
+    runs-on: ubuntu-latest-arm64  # Use native ARM64 runner
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10"]  # Only build for Python 3.10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential curl git gnupg lsb-release wget cmake
+          cmake --version
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          source $HOME/.cargo/env
+          python -m pip install --upgrade pip setuptools wheel pip-tools maturin
+
+      - name: Set environment variables
+        run: |
+          echo "Setting required environment variables"
+          # This explicitly sets PACKAGE_VERSION in the GitHub environment
+          echo "PACKAGE_VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+
+      - name: Build all wheels and dependencies
+        env:
+          CMAKE_POLICY_VERSION_MINIMUM: 3.5
+          LANGUAGE: ${{ github.event.inputs.language }}
+          GPU_SUPPORT: ${{ github.event.inputs.gpu_support }}
+        run: |
+          mkdir -p wheelhouse
+          
+          # Configure the appropriate PyTorch installation based on GPU support
+          if [ "$GPU_SUPPORT" = "gpu" ]; then
+            echo "Building with GPU support - including CUDA dependencies"
+            pip install --no-cache-dir torch
+          else
+            echo "Building CPU-only version - excluding CUDA dependencies"
+            pip install --no-cache-dir torch --extra-index-url https://download.pytorch.org/whl/cpu
+          fi
+          
+          # Build pyopenjtalk first to handle CMake policy issue
+          pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0 || echo "Pyopenjtalk wheel build failed, will try with full kokoro install"
+          
+          # Download and build kokoro with selected language dependencies
+          if [ "$LANGUAGE" = "all" ]; then
+            pip wheel --wheel-dir wheelhouse "kokoro[all]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "en" ]; then
+            pip wheel --wheel-dir wheelhouse "kokoro[en]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "ja" ]; then
+            pip wheel --wheel-dir wheelhouse "kokoro[ja]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "zh" ]; then
+            pip wheel --wheel-dir wheelhouse "kokoro[zh]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "ko" ]; then
+            pip wheel --wheel-dir wheelhouse "kokoro[ko]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "fr" ]; then
+            pip wheel --wheel-dir wheelhouse "kokoro[fr]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "de" ]; then
+            pip wheel --wheel-dir wheelhouse "kokoro[de]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "es" ]; then
+            pip wheel --wheel-dir wheelhouse "kokoro[es]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "ru" ]; then
+            pip wheel --wheel-dir wheelhouse "kokoro[ru]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "pt" ]; then
+            pip wheel --wheel-dir wheelhouse "kokoro[pt]==${{ github.event.inputs.version }}"
+          else
+            echo "Unsupported language: $LANGUAGE" && exit 1
+          fi
+          
+          # List all wheels for debugging
+          find wheelhouse -name "*.whl" | sort > wheelhouse/wheel_list.txt
+          echo "All wheels built:"
+          cat wheelhouse/wheel_list.txt
+          echo "Total wheel count: $(cat wheelhouse/wheel_list.txt | wc -l)"
+
+      - name: Upload ARM64 Dependencies
+        uses: actions/upload-artifact@v4
+        with:
+          name: kokoro-all-deps-arm64-py${{ matrix.python-version }}
+          path: wheelhouse/*.whl
+
+  create_deps_release:
+    name: Create Dependencies Release
+    needs: [build_amd64_deps, build_arm64_deps]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # For release creation
+    steps:
+      - name: Download all wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List downloaded files
+        run: |
+          find artifacts -type f -name "*.whl" | sort
+          echo "Total wheel count: $(find artifacts -type f -name "*.whl" | wc -l)"
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release_assets
+          cp -f artifacts/kokoro-all-deps-*/*.whl release_assets/ || true
+          echo "--- Contents of release_assets ---"
+          ls -la release_assets
+          echo "Total wheel count: $(find release_assets -type f -name "*.whl" | wc -l)"
+          echo "----------------------------------"
+
+      - name: Create Release and Upload All Dependencies
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: kokoro-deps-v${{ github.event.inputs.version }}-${{ github.event.inputs.language }}
+          name: Kokoro v${{ github.event.inputs.version }} Dependencies (${{ github.event.inputs.language }})
+          files: release_assets/*.whl
+          body: |
+            # Kokoro Dependencies (${{ github.event.inputs.language }})
+
+            This release contains dependencies required by Kokoro v${{ github.event.inputs.version }} for both ARM64 and AMD64 architectures.
+            Language pack: ${{ github.event.inputs.language }}
+            
+            These pre-built wheels make it easy to install Kokoro and all its dependencies in environments where compilation might be difficult or time-consuming.
+
+            ## Usage in Dockerfile
+            ```dockerfile
+            # Download and install all pre-built wheels
+            COPY --from=ghcr.io/remsky/prebuilt_tts_wheels/kokoro-deps:${{ github.event.inputs.version }}-${{ github.event.inputs.language }}-${{ github.event.inputs.gpu_support }}-py3.10 /wheelhouse /wheelhouse
+            RUN pip install --no-index --find-links=/wheelhouse kokoro[${{ github.event.inputs.language }}]==${{ github.event.inputs.version }}
+            ```
+          make_latest: ${{ github.event.inputs.language == 'all' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build_and_push_container:
+    name: Push Dependencies Container
+    needs: [build_amd64_deps, build_arm64_deps]
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write  # For pushing to GHCR
+    strategy:
+      matrix:
+        python-version: ["3.10"]  # Only build for Python 3.10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare AMD64 wheels directory
+        id: amd64-wheels
+        run: |
+          mkdir -p wheelhouse-amd64-py${{ matrix.python-version }}
+          cp -f artifacts/kokoro-all-deps-amd64-py${{ matrix.python-version }}/*.whl wheelhouse-amd64-py${{ matrix.python-version }}/ || true
+          AMD64_COUNT=$(find wheelhouse-amd64-py${{ matrix.python-version }} -type f -name "*.whl" | wc -l)
+          echo "count=${AMD64_COUNT}" >> $GITHUB_OUTPUT
+          echo "::notice title=AMD64 Wheels::Found ${AMD64_COUNT} wheels for Python ${{ matrix.python-version }}"
+          
+      - name: Prepare ARM64 wheels directory
+        id: arm64-wheels
+        run: |
+          mkdir -p wheelhouse-arm64-py${{ matrix.python-version }}
+          cp -f artifacts/kokoro-all-deps-arm64-py${{ matrix.python-version }}/*.whl wheelhouse-arm64-py${{ matrix.python-version }}/ || true
+          ARM64_COUNT=$(find wheelhouse-arm64-py${{ matrix.python-version }} -type f -name "*.whl" | wc -l)
+          echo "count=${ARM64_COUNT}" >> $GITHUB_OUTPUT
+          if [ "${ARM64_COUNT}" -gt 0 ]; then
+            echo "found=true" >> $GITHUB_OUTPUT
+            echo "::notice title=ARM64 Wheels::Found ${ARM64_COUNT} wheels for Python ${{ matrix.python-version }}"
+          else
+            echo "found=false" >> $GITHUB_OUTPUT
+            echo "::warning title=ARM64 Wheels::No wheels found for Python ${{ matrix.python-version }}"
+          fi
+
+      - name: Set up QEMU # Add QEMU setup
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx # Add Buildx setup
+        uses: docker/setup-buildx-action@v3
+          
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.PAT_PACKAGES }}  # Use PAT instead of GITHUB_TOKEN
+
+      - name: Build and push multi-platform image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: kokoro-image/kokoro-deps-multiarch.Dockerfile # Use the kokoro multiarch Dockerfile
+          platforms: linux/amd64,linux/arm64 # Build both platforms
+          push: true
+          tags: ghcr.io/remsky/prebuilt_tts_wheels/kokoro-deps:${{ github.event.inputs.version }}-${{ github.event.inputs.language }}-${{ github.event.inputs.gpu_support }}-py${{ matrix.python-version }} # Push the final tag
+          build-args: | # Pass Python version to Dockerfile
+            PYTHON_VERSION=${{ matrix.python-version }}
+          cache-from: type=gha # Enable GHA cache read
+          cache-to: type=gha,mode=max # Enable GHA cache write
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.description=Pre-built wheels for Kokoro TTS (${{ github.event.inputs.language }}, ${{ github.event.inputs.gpu_support }})
+            org.opencontainers.image.licenses=MIT
