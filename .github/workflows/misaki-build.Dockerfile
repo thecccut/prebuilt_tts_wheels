@@ -7,6 +7,7 @@ ENV PACKAGE_VERSION=${PACKAGE_VERSION}
 # Install build dependencies (using Debian's package for CMake)
 RUN apt-get update && apt-get install -y \
     build-essential \
+    g++-10 \
     curl \
     git \
     gnupg \
@@ -30,6 +31,9 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Install maturin, numpy and Cython for building dependencies
 RUN pip install maturin numpy Cython
+
+# Force use of older GCC for building wheels
+ENV CC=gcc-10 CXX=g++-10
 
 # Build misaki and all its dependencies in one go
 # Note: We need to source the cargo env file in the same command

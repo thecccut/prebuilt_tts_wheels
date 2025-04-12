@@ -102,7 +102,10 @@ jobs:
       - name: Build ARM64 dependencies in Docker
         run: |
           mkdir -p wheelhouse
-          # First build the image
+          echo "Checking if wheelhouse directory exists before build:"
+          ls -la ./
+          
+          # First build the image with better debugging
           docker buildx build --platform linux/arm64 \
             --build-arg PYTHON_VERSION=${{ matrix.python-version }} \
             --build-arg PACKAGE_VERSION=${{ env.PACKAGE_VERSION }} \
@@ -110,12 +113,27 @@ jobs:
             --load \
             -t misaki-deps-builder .
           
-          # Then run it with the environment variable
+          # Check if the container can write to a test file in the volume
           docker run --rm \
             -v $(pwd)/wheelhouse:/wheelhouse \
+            misaki-deps-builder \
+            /bin/bash -c "echo 'Test file' > /wheelhouse/test.txt && ls -la /wheelhouse"
+            
+          echo "Checking if test file was created:"
+          ls -la ./wheelhouse/
+          
+          # Then run it with explicit permissions and absolute path for volume
+          docker run --rm \
+            -v "$(pwd)/wheelhouse:/wheelhouse:rw" \
             -e PACKAGE_VERSION=${{ env.PACKAGE_VERSION }} \
             misaki-deps-builder
           
+          # Force correct permissions on wheelhouse directory
+          sudo chown -R $(id -u):$(id -g) ./wheelhouse
+          
+          echo "Contents of wheelhouse after build:"
+          find ./wheelhouse -type f | sort
+
       - name: List built wheels
         run: |
           echo "Found wheels in wheelhouse:"
