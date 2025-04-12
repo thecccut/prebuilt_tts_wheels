@@ -1,4 +1,4 @@
-name: Build All Misaki Dependencies
+name: Build Misaki Dependencies Per Language
 
 on:
   workflow_dispatch: # Allow manual triggering
@@ -7,6 +7,26 @@ on:
         description: 'Version of Misaki to build'
         required: true
         default: '0.9.4'
+      language:
+        description: 'Language to build (en, ja, ko, zh, vi, or all)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - en
+          - ja
+          - ko
+          - zh
+          - vi
+      gpu_support:
+        description: 'Include GPU/CUDA support'
+        required: true
+        default: 'cpu'
+        type: choice
+        options:
+          - cpu
+          - gpu
 
 # Add permissions needed for package uploads and releases
 permissions:
@@ -43,14 +63,40 @@ jobs:
       - name: Build all wheels and dependencies
         env:
           CMAKE_POLICY_VERSION_MINIMUM: 3.5
+          LANGUAGE: ${{ github.event.inputs.language }}
+          GPU_SUPPORT: ${{ github.event.inputs.gpu_support }}
         run: |
           mkdir -p wheelhouse
+          
+          # Configure the appropriate PyTorch installation based on GPU support
+          if [ "$GPU_SUPPORT" = "gpu" ]; then
+            echo "Building with GPU support - including CUDA dependencies"
+            pip install --no-cache-dir torch
+          else
+            echo "Building CPU-only version - excluding CUDA dependencies"
+            pip install --no-cache-dir torch --extra-index-url https://download.pytorch.org/whl/cpu
+          fi
+          
           # Build pyopenjtalk first to handle CMake policy issue
           pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0 || echo "Pyopenjtalk wheel build failed, will try with full misaki install"
           # Build underthesea-core with maturin explicitly
           pip wheel --wheel-dir wheelhouse underthesea-core==1.0.4 || echo "underthesea-core wheel build failed, will try with full misaki install"
-          # Download and build misaki with all its dependencies
-          pip wheel --wheel-dir wheelhouse "misaki[en,ja,ko,zh,vi]==${{ github.event.inputs.version }}"
+          # Download and build misaki with selected language dependencies
+          if [ "$LANGUAGE" = "all" ]; then
+            pip wheel --wheel-dir wheelhouse "misaki[en,ja,ko,zh,vi]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "en" ]; then
+            pip wheel --wheel-dir wheelhouse "misaki[en]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "ja" ]; then
+            pip wheel --wheel-dir wheelhouse "misaki[ja]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "ko" ]; then
+            pip wheel --wheel-dir wheelhouse "misaki[ko]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "zh" ]; then
+            pip wheel --wheel-dir wheelhouse "misaki[zh]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "vi" ]; then
+            pip wheel --wheel-dir wheelhouse "misaki[vi]==${{ github.event.inputs.version }}"
+          else
+            echo "Unsupported language: $LANGUAGE" && exit 1
+          fi
           # List all wheels for debugging
           find wheelhouse -name "*.whl" | sort > wheelhouse/wheel_list.txt
           echo "All wheels built:"
@@ -65,7 +111,7 @@ jobs:
 
   build_arm64_deps:
     name: Build ARM64 Dependencies
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-arm64  # Use native ARM64 runner
     strategy:
       fail-fast: false
       matrix:
@@ -75,13 +121,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          platforms: arm64
+          python-version: ${{ matrix.python-version }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential curl git gnupg lsb-release wget cmake
+          cmake --version
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          source $HOME/.cargo/env
+          python -m pip install --upgrade pip setuptools wheel pip-tools maturin
 
       - name: Set environment variables
         run: |
@@ -89,56 +141,49 @@ jobs:
           # This explicitly sets PACKAGE_VERSION in the GitHub environment
           echo "PACKAGE_VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
 
-      - name: Debug environment
-        run: |
-          echo "Debugging environment variables:"
-          echo "github.event.inputs.version: ${{ github.event.inputs.version }}"
-          # Use env directly because the variable should now be available
-          echo "PACKAGE_VERSION: ${{ env.PACKAGE_VERSION }}"
-          # List key environment variables without using grep
-          echo "All environment variables:"
-          printenv
-
-      - name: Build ARM64 dependencies in Docker
+      - name: Build all wheels and dependencies
+        env:
+          CMAKE_POLICY_VERSION_MINIMUM: 3.5
+          LANGUAGE: ${{ github.event.inputs.language }}
+          GPU_SUPPORT: ${{ github.event.inputs.gpu_support }}
         run: |
           mkdir -p wheelhouse
-          echo "Checking if wheelhouse directory exists before build:"
-          ls -la ./
           
-          # First build the image with better debugging
-          docker buildx build --platform linux/arm64 \
-            --build-arg PYTHON_VERSION=${{ matrix.python-version }} \
-            --build-arg PACKAGE_VERSION=${{ env.PACKAGE_VERSION }} \
-            -f .github/workflows/misaki-deps.Dockerfile \
-            --load \
-            -t misaki-deps-builder .
+          # Configure the appropriate PyTorch installation based on GPU support
+          if [ "$GPU_SUPPORT" = "gpu" ]; then
+            echo "Building with GPU support - including CUDA dependencies"
+            pip install --no-cache-dir torch
+          else
+            echo "Building CPU-only version - excluding CUDA dependencies"
+            pip install --no-cache-dir torch --extra-index-url https://download.pytorch.org/whl/cpu
+          fi
           
-          # Check if the container can write to a test file in the volume
-          docker run --rm \
-            -v $(pwd)/wheelhouse:/wheelhouse \
-            misaki-deps-builder \
-            /bin/bash -c "echo 'Test file' > /wheelhouse/test.txt && ls -la /wheelhouse"
-            
-          echo "Checking if test file was created:"
-          ls -la ./wheelhouse/
+          # Build pyopenjtalk first to handle CMake policy issue
+          pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0 || echo "Pyopenjtalk wheel build failed, will try with full misaki install"
+          # Build underthesea-core with maturin explicitly
+          pip wheel --wheel-dir wheelhouse underthesea-core==1.0.4 || echo "underthesea-core wheel build failed, will try with full misaki install"
+          # Download and build misaki with selected language dependencies
+          if [ "$LANGUAGE" = "all" ]; then
+            pip wheel --wheel-dir wheelhouse "misaki[en,ja,ko,zh,vi]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "en" ]; then
+            pip wheel --wheel-dir wheelhouse "misaki[en]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "ja" ]; then
+            pip wheel --wheel-dir wheelhouse "misaki[ja]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "ko" ]; then
+            pip wheel --wheel-dir wheelhouse "misaki[ko]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "zh" ]; then
+            pip wheel --wheel-dir wheelhouse "misaki[zh]==${{ github.event.inputs.version }}"
+          elif [ "$LANGUAGE" = "vi" ]; then
+            pip wheel --wheel-dir wheelhouse "misaki[vi]==${{ github.event.inputs.version }}"
+          else
+            echo "Unsupported language: $LANGUAGE" && exit 1
+          fi
           
-          # Then run it with explicit permissions and absolute path for volume
-          docker run --rm \
-            -v "$(pwd)/wheelhouse:/wheelhouse:rw" \
-            -e PACKAGE_VERSION=${{ env.PACKAGE_VERSION }} \
-            misaki-deps-builder
-          
-          # Force correct permissions on wheelhouse directory
-          sudo chown -R $(id -u):$(id -g) ./wheelhouse
-          
-          echo "Contents of wheelhouse after build:"
-          find ./wheelhouse -type f | sort
-
-      - name: List built wheels
-        run: |
-          echo "Found wheels in wheelhouse:"
-          find wheelhouse -type f -name "*.whl" | sort
-          echo "Total wheel count: $(find wheelhouse -type f -name "*.whl" | wc -l)"
+          # List all wheels for debugging
+          find wheelhouse -name "*.whl" | sort > wheelhouse/wheel_list.txt
+          echo "All wheels built:"
+          cat wheelhouse/wheel_list.txt
+          echo "Total wheel count: $(cat wheelhouse/wheel_list.txt | wc -l)"
 
       - name: Upload ARM64 Dependencies
         uses: actions/upload-artifact@v4
@@ -175,23 +220,24 @@ jobs:
       - name: Create Release and Upload All Dependencies
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: misaki-deps-v${{ github.event.inputs.version }}
-          name: Misaki v${{ github.event.inputs.version }} All Dependencies
+          tag_name: misaki-deps-v${{ github.event.inputs.version }}-${{ github.event.inputs.language }}
+          name: Misaki v${{ github.event.inputs.version }} Dependencies (${{ github.event.inputs.language }})
           files: release_assets/*.whl
           body: |
-            # Misaki Dependencies
+            # Misaki Dependencies (${{ github.event.inputs.language }})
 
-            This release contains all dependencies required by Misaki v${{ github.event.inputs.version }} for both ARM64 and AMD64 architectures.
+            This release contains dependencies required by Misaki v${{ github.event.inputs.version }} for both ARM64 and AMD64 architectures.
+            Language pack: ${{ github.event.inputs.language }}
             
             These pre-built wheels make it easy to install Misaki and all its dependencies in environments where compilation might be difficult or time-consuming.
 
             ## Usage in Dockerfile
             ```dockerfile
             # Download and install all pre-built wheels
-            COPY --from=ghcr.io/your-org/misaki-deps:${{ github.event.inputs.version }} /wheelhouse /wheelhouse
-            RUN pip install --no-index --find-links=/wheelhouse misaki[en,ja,ko,zh,vi]==${{ github.event.inputs.version }}
+            COPY --from=ghcr.io/remsky/prebuilt_tts_wheels/misaki-deps:${{ github.event.inputs.version }}-${{ github.event.inputs.language }}-py3.10 /wheelhouse /wheelhouse
+            RUN pip install --no-index --find-links=/wheelhouse misaki[${{ github.event.inputs.language }}]==${{ github.event.inputs.version }}
             ```
-          make_latest: true
+          make_latest: ${{ github.event.inputs.language == 'all' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -257,12 +303,12 @@ jobs:
           file: .github/workflows/misaki-deps-multiarch.Dockerfile # Use the new Dockerfile
           platforms: linux/amd64,linux/arm64 # Build both platforms
           push: true
-          tags: ghcr.io/remsky/prebuilt_tts_wheels/misaki-deps:${{ github.event.inputs.version }}-py${{ matrix.python-version }} # Push the final tag
+          tags: ghcr.io/remsky/prebuilt_tts_wheels/misaki-deps:${{ github.event.inputs.version }}-${{ github.event.inputs.language }}-${{ github.event.inputs.gpu_support }}-py${{ matrix.python-version }} # Push the final tag
           build-args: | # Pass Python version to Dockerfile
             PYTHON_VERSION=${{ matrix.python-version }}
           cache-from: type=gha # Enable GHA cache read
           cache-to: type=gha,mode=max # Enable GHA cache write
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.description=Pre-built wheels for Misaki TTS
+            org.opencontainers.image.description=Pre-built wheels for Misaki TTS (${{ github.event.inputs.language }}, ${{ github.event.inputs.gpu_support }})
             org.opencontainers.image.licenses=MIT
