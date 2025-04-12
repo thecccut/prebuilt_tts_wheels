@@ -75,88 +75,114 @@ jobs:
           # Configure PyTorch installation based on GPU/CPU choice
           if [ "$GPU_SUPPORT" = "gpu" ]; then
             echo "Building with GPU support - including CUDA dependencies"
-            pip install torch
+            # For GPU builds, use the default PyTorch with CUDA support
+            TORCH_INSTALL_CMD="pip install torch"
+            TORCH_INDEX=""
+            EXTRA_ARGS=""
           else
             echo "Building CPU-only version - using PyTorch CPU variant"
-            pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
+            # For CPU builds, explicitly use the CPU-only PyTorch variant
+            TORCH_INSTALL_CMD="pip install torch --extra-index-url https://download.pytorch.org/whl/cpu"
+            TORCH_INDEX="--extra-index-url https://download.pytorch.org/whl/cpu"
+            EXTRA_ARGS="--config-settings=\"--global-option=build_ext\" --config-settings=\"--global-option=-DUSE_CUDA=OFF\""
           fi
           
-          # Clone and build Kokoro from source
-          echo "Cloning Kokoro repository..."
-          git clone https://github.com/hexgrad/kokoro.git
-          cd kokoro
-          git checkout v${{ github.event.inputs.version }} || git checkout main
+          # Execute the appropriate PyTorch installation
+          eval $TORCH_INSTALL_CMD
           
-          # Install build dependencies
-          pip install hatchling wheel
-          
-          # List currently installed PyTorch packages to verify CPU/GPU status
+          # Verify currently installed PyTorch packages
           echo "Currently installed PyTorch packages:"
           pip list | grep -E 'torch|cuda|nvidia'
           
-          # Build the base Kokoro wheel without dependencies
-          echo "Building Kokoro wheel from source..."
-          python -m build --wheel
-          cp dist/*.whl ../wheelhouse/
+          # Build pyopenjtalk first to handle CMake policy issue
+          pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0 || echo "Pyopenjtalk wheel build failed, will try with full kokoro install"
           
-          # Build required dependencies for the selected language
-          cd ..
-          echo "Building dependencies for language: $LANGUAGE"
-          
-          # Build pyopenjtalk first to handle potential CMake policy issues
-          pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0 || echo "Pyopenjtalk wheel build failed, continuing..."
-          
-          # Build dependencies based on language selection
-          if [ "$LANGUAGE" = "all" ] || [ "$LANGUAGE" = "en" ]; then
-            echo "Building English dependencies..."
-            pip wheel --wheel-dir wheelhouse "misaki[en]>=0.9.4" huggingface_hub loguru numpy transformers
+          # Now collect all dependencies based on language selection
+          # Using full dependency collection to ensure ALL supporting packages are included
+          if [ "$LANGUAGE" = "all" ]; then
+            if [ "$GPU_SUPPORT" = "gpu" ]; then
+              echo "Collecting all dependencies for all languages with GPU support..."
+              pip wheel --wheel-dir wheelhouse "kokoro[all]==${{ github.event.inputs.version }}"
+            else
+              echo "Collecting all dependencies for all languages with CPU-only PyTorch..."
+              # First get torch CPU variant into the wheelhouse
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
+              # Then get all other dependencies
+              pip wheel --wheel-dir wheelhouse "kokoro[all]==${{ github.event.inputs.version }}"
+            fi
+          elif [ "$LANGUAGE" = "en" ]; then
+            if [ "$GPU_SUPPORT" = "gpu" ]; then
+              pip wheel --wheel-dir wheelhouse "kokoro[en]==${{ github.event.inputs.version }}"
+            else
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
+              pip wheel --wheel-dir wheelhouse "kokoro[en]==${{ github.event.inputs.version }}"
+            fi
+          elif [ "$LANGUAGE" = "ja" ]; then
+            if [ "$GPU_SUPPORT" = "gpu" ]; then
+              pip wheel --wheel-dir wheelhouse "kokoro[ja]==${{ github.event.inputs.version }}"
+            else
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
+              pip wheel --wheel-dir wheelhouse "kokoro[ja]==${{ github.event.inputs.version }}"
+            fi
+          elif [ "$LANGUAGE" = "zh" ]; then
+            if [ "$GPU_SUPPORT" = "gpu" ]; then
+              pip wheel --wheel-dir wheelhouse "kokoro[zh]==${{ github.event.inputs.version }}"
+            else
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
+              pip wheel --wheel-dir wheelhouse "kokoro[zh]==${{ github.event.inputs.version }}"
+            fi
+          elif [ "$LANGUAGE" = "ko" ]; then
+            if [ "$GPU_SUPPORT" = "gpu" ]; then
+              pip wheel --wheel-dir wheelhouse "kokoro[ko]==${{ github.event.inputs.version }}"
+            else
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
+              pip wheel --wheel-dir wheelhouse "kokoro[ko]==${{ github.event.inputs.version }}"
+            fi
+          elif [ "$LANGUAGE" = "fr" ]; then
+            if [ "$GPU_SUPPORT" = "gpu" ]; then
+              pip wheel --wheel-dir wheelhouse "kokoro[fr]==${{ github.event.inputs.version }}"
+            else
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
+              pip wheel --wheel-dir wheelhouse "kokoro[fr]==${{ github.event.inputs.version }}"
+            fi
+          elif [ "$LANGUAGE" = "de" ]; then
+            if [ "$GPU_SUPPORT" = "gpu" ]; then
+              pip wheel --wheel-dir wheelhouse "kokoro[de]==${{ github.event.inputs.version }}"
+            else
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
+              pip wheel --wheel-dir wheelhouse "kokoro[de]==${{ github.event.inputs.version }}"
+            fi
+          elif [ "$LANGUAGE" = "es" ]; then
+            if [ "$GPU_SUPPORT" = "gpu" ]; then
+              pip wheel --wheel-dir wheelhouse "kokoro[es]==${{ github.event.inputs.version }}"
+            else
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
+              pip wheel --wheel-dir wheelhouse "kokoro[es]==${{ github.event.inputs.version }}"
+            fi
+          elif [ "$LANGUAGE" = "ru" ]; then
+            if [ "$GPU_SUPPORT" = "gpu" ]; then
+              pip wheel --wheel-dir wheelhouse "kokoro[ru]==${{ github.event.inputs.version }}"
+            else
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
+              pip wheel --wheel-dir wheelhouse "kokoro[ru]==${{ github.event.inputs.version }}"
+            fi
+          elif [ "$LANGUAGE" = "pt" ]; then
+            if [ "$GPU_SUPPORT" = "gpu" ]; then
+              pip wheel --wheel-dir wheelhouse "kokoro[pt]==${{ github.event.inputs.version }}"
+            else
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
+              pip wheel --wheel-dir wheelhouse "kokoro[pt]==${{ github.event.inputs.version }}"
+            fi
+          else
+            echo "Unsupported language: $LANGUAGE" && exit 1
           fi
           
-          if [ "$LANGUAGE" = "all" ] || [ "$LANGUAGE" = "ja" ]; then
-            echo "Building Japanese dependencies..."
-            pip wheel --wheel-dir wheelhouse "misaki[ja]>=0.9.4" huggingface_hub loguru numpy transformers
-          fi
-          
-          if [ "$LANGUAGE" = "all" ] || [ "$LANGUAGE" = "zh" ]; then
-            echo "Building Chinese dependencies..."
-            pip wheel --wheel-dir wheelhouse "misaki[zh]>=0.9.4" huggingface_hub loguru numpy transformers
-          fi
-          
-          if [ "$LANGUAGE" = "all" ] || [ "$LANGUAGE" = "ko" ]; then
-            echo "Building Korean dependencies..."
-            pip wheel --wheel-dir wheelhouse "misaki[ko]>=0.9.4" huggingface_hub loguru numpy transformers
-          fi
-          
-          if [ "$LANGUAGE" = "all" ] || [ "$LANGUAGE" = "fr" ]; then
-            echo "Building French dependencies..."
-            pip wheel --wheel-dir wheelhouse "misaki[fr]>=0.9.4" huggingface_hub loguru numpy transformers
-          fi
-          
-          if [ "$LANGUAGE" = "all" ] || [ "$LANGUAGE" = "de" ]; then
-            echo "Building German dependencies..."
-            pip wheel --wheel-dir wheelhouse "misaki[de]>=0.9.4" huggingface_hub loguru numpy transformers
-          fi
-          
-          if [ "$LANGUAGE" = "all" ] || [ "$LANGUAGE" = "es" ]; then
-            echo "Building Spanish dependencies..."
-            pip wheel --wheel-dir wheelhouse "misaki[es]>=0.9.4" huggingface_hub loguru numpy transformers
-          fi
-          
-          if [ "$LANGUAGE" = "all" ] || [ "$LANGUAGE" = "ru" ]; then
-            echo "Building Russian dependencies..."
-            pip wheel --wheel-dir wheelhouse "misaki[ru]>=0.9.4" huggingface_hub loguru numpy transformers
-          fi
-          
-          if [ "$LANGUAGE" = "all" ] || [ "$LANGUAGE" = "pt" ]; then
-            echo "Building Portuguese dependencies..."
-            pip wheel --wheel-dir wheelhouse "misaki[pt]>=0.9.4" huggingface_hub loguru numpy transformers
-          fi
-          
-          # For CPU builds, double-check and remove any CUDA packages that might have slipped through
+          # For CPU builds, remove any CUDA packages that might have slipped through
           if [ "$GPU_SUPPORT" = "cpu" ]; then
-            echo "Double-checking for CUDA packages in the CPU build..."
+            echo "Final check: removing any CUDA-related wheels from the CPU build..."
             find wheelhouse -name "*cuda*" -delete
             find wheelhouse -name "*nvidia*" -delete
+            find wheelhouse -name "*nccl*" -delete
           fi
           
           # List all wheels for debugging
@@ -214,88 +240,114 @@ jobs:
           # Configure PyTorch installation based on GPU/CPU choice
           if [ "$GPU_SUPPORT" = "gpu" ]; then
             echo "Building with GPU support - including CUDA dependencies"
-            pip install torch
+            # For GPU builds, use the default PyTorch with CUDA support
+            TORCH_INSTALL_CMD="pip install torch"
+            TORCH_INDEX=""
+            EXTRA_ARGS=""
           else
             echo "Building CPU-only version - using PyTorch CPU variant"
-            pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
+            # For CPU builds, explicitly use the CPU-only PyTorch variant
+            TORCH_INSTALL_CMD="pip install torch --extra-index-url https://download.pytorch.org/whl/cpu"
+            TORCH_INDEX="--extra-index-url https://download.pytorch.org/whl/cpu"
+            EXTRA_ARGS="--config-settings=\"--global-option=build_ext\" --config-settings=\"--global-option=-DUSE_CUDA=OFF\""
           fi
           
-          # Clone and build Kokoro from source
-          echo "Cloning Kokoro repository..."
-          git clone https://github.com/hexgrad/kokoro.git
-          cd kokoro
-          git checkout v${{ github.event.inputs.version }} || git checkout main
+          # Execute the appropriate PyTorch installation
+          eval $TORCH_INSTALL_CMD
           
-          # Install build dependencies
-          pip install hatchling wheel
-          
-          # List currently installed PyTorch packages to verify CPU/GPU status
+          # Verify currently installed PyTorch packages
           echo "Currently installed PyTorch packages:"
           pip list | grep -E 'torch|cuda|nvidia'
           
-          # Build the base Kokoro wheel without dependencies
-          echo "Building Kokoro wheel from source..."
-          python -m build --wheel
-          cp dist/*.whl ../wheelhouse/
+          # Build pyopenjtalk first to handle CMake policy issue
+          pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0 || echo "Pyopenjtalk wheel build failed, will try with full kokoro install"
           
-          # Build required dependencies for the selected language
-          cd ..
-          echo "Building dependencies for language: $LANGUAGE"
-          
-          # Build pyopenjtalk first to handle potential CMake policy issues
-          pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0 || echo "Pyopenjtalk wheel build failed, continuing..."
-          
-          # Build dependencies based on language selection
-          if [ "$LANGUAGE" = "all" ] || [ "$LANGUAGE" = "en" ]; then
-            echo "Building English dependencies..."
-            pip wheel --wheel-dir wheelhouse "misaki[en]>=0.9.4" huggingface_hub loguru numpy transformers
+          # Now collect all dependencies based on language selection
+          # Using full dependency collection to ensure ALL supporting packages are included
+          if [ "$LANGUAGE" = "all" ]; then
+            if [ "$GPU_SUPPORT" = "gpu" ]; then
+              echo "Collecting all dependencies for all languages with GPU support..."
+              pip wheel --wheel-dir wheelhouse "kokoro[all]==${{ github.event.inputs.version }}"
+            else
+              echo "Collecting all dependencies for all languages with CPU-only PyTorch..."
+              # First get torch CPU variant into the wheelhouse
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
+              # Then get all other dependencies
+              pip wheel --wheel-dir wheelhouse "kokoro[all]==${{ github.event.inputs.version }}"
+            fi
+          elif [ "$LANGUAGE" = "en" ]; then
+            if [ "$GPU_SUPPORT" = "gpu" ]; then
+              pip wheel --wheel-dir wheelhouse "kokoro[en]==${{ github.event.inputs.version }}"
+            else
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
+              pip wheel --wheel-dir wheelhouse "kokoro[en]==${{ github.event.inputs.version }}"
+            fi
+          elif [ "$LANGUAGE" = "ja" ]; then
+            if [ "$GPU_SUPPORT" = "gpu" ]; then
+              pip wheel --wheel-dir wheelhouse "kokoro[ja]==${{ github.event.inputs.version }}"
+            else
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
+              pip wheel --wheel-dir wheelhouse "kokoro[ja]==${{ github.event.inputs.version }}"
+            fi
+          elif [ "$LANGUAGE" = "zh" ]; then
+            if [ "$GPU_SUPPORT" = "gpu" ]; then
+              pip wheel --wheel-dir wheelhouse "kokoro[zh]==${{ github.event.inputs.version }}"
+            else
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
+              pip wheel --wheel-dir wheelhouse "kokoro[zh]==${{ github.event.inputs.version }}"
+            fi
+          elif [ "$LANGUAGE" = "ko" ]; then
+            if [ "$GPU_SUPPORT" = "gpu" ]; then
+              pip wheel --wheel-dir wheelhouse "kokoro[ko]==${{ github.event.inputs.version }}"
+            else
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
+              pip wheel --wheel-dir wheelhouse "kokoro[ko]==${{ github.event.inputs.version }}"
+            fi
+          elif [ "$LANGUAGE" = "fr" ]; then
+            if [ "$GPU_SUPPORT" = "gpu" ]; then
+              pip wheel --wheel-dir wheelhouse "kokoro[fr]==${{ github.event.inputs.version }}"
+            else
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
+              pip wheel --wheel-dir wheelhouse "kokoro[fr]==${{ github.event.inputs.version }}"
+            fi
+          elif [ "$LANGUAGE" = "de" ]; then
+            if [ "$GPU_SUPPORT" = "gpu" ]; then
+              pip wheel --wheel-dir wheelhouse "kokoro[de]==${{ github.event.inputs.version }}"
+            else
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
+              pip wheel --wheel-dir wheelhouse "kokoro[de]==${{ github.event.inputs.version }}"
+            fi
+          elif [ "$LANGUAGE" = "es" ]; then
+            if [ "$GPU_SUPPORT" = "gpu" ]; then
+              pip wheel --wheel-dir wheelhouse "kokoro[es]==${{ github.event.inputs.version }}"
+            else
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
+              pip wheel --wheel-dir wheelhouse "kokoro[es]==${{ github.event.inputs.version }}"
+            fi
+          elif [ "$LANGUAGE" = "ru" ]; then
+            if [ "$GPU_SUPPORT" = "gpu" ]; then
+              pip wheel --wheel-dir wheelhouse "kokoro[ru]==${{ github.event.inputs.version }}"
+            else
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
+              pip wheel --wheel-dir wheelhouse "kokoro[ru]==${{ github.event.inputs.version }}"
+            fi
+          elif [ "$LANGUAGE" = "pt" ]; then
+            if [ "$GPU_SUPPORT" = "gpu" ]; then
+              pip wheel --wheel-dir wheelhouse "kokoro[pt]==${{ github.event.inputs.version }}"
+            else
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
+              pip wheel --wheel-dir wheelhouse "kokoro[pt]==${{ github.event.inputs.version }}"
+            fi
+          else
+            echo "Unsupported language: $LANGUAGE" && exit 1
           fi
           
-          if [ "$LANGUAGE" = "all" ] || [ "$LANGUAGE" = "ja" ]; then
-            echo "Building Japanese dependencies..."
-            pip wheel --wheel-dir wheelhouse "misaki[ja]>=0.9.4" huggingface_hub loguru numpy transformers
-          fi
-          
-          if [ "$LANGUAGE" = "all" ] || [ "$LANGUAGE" = "zh" ]; then
-            echo "Building Chinese dependencies..."
-            pip wheel --wheel-dir wheelhouse "misaki[zh]>=0.9.4" huggingface_hub loguru numpy transformers
-          fi
-          
-          if [ "$LANGUAGE" = "all" ] || [ "$LANGUAGE" = "ko" ]; then
-            echo "Building Korean dependencies..."
-            pip wheel --wheel-dir wheelhouse "misaki[ko]>=0.9.4" huggingface_hub loguru numpy transformers
-          fi
-          
-          if [ "$LANGUAGE" = "all" ] || [ "$LANGUAGE" = "fr" ]; then
-            echo "Building French dependencies..."
-            pip wheel --wheel-dir wheelhouse "misaki[fr]>=0.9.4" huggingface_hub loguru numpy transformers
-          fi
-          
-          if [ "$LANGUAGE" = "all" ] || [ "$LANGUAGE" = "de" ]; then
-            echo "Building German dependencies..."
-            pip wheel --wheel-dir wheelhouse "misaki[de]>=0.9.4" huggingface_hub loguru numpy transformers
-          fi
-          
-          if [ "$LANGUAGE" = "all" ] || [ "$LANGUAGE" = "es" ]; then
-            echo "Building Spanish dependencies..."
-            pip wheel --wheel-dir wheelhouse "misaki[es]>=0.9.4" huggingface_hub loguru numpy transformers
-          fi
-          
-          if [ "$LANGUAGE" = "all" ] || [ "$LANGUAGE" = "ru" ]; then
-            echo "Building Russian dependencies..."
-            pip wheel --wheel-dir wheelhouse "misaki[ru]>=0.9.4" huggingface_hub loguru numpy transformers
-          fi
-          
-          if [ "$LANGUAGE" = "all" ] || [ "$LANGUAGE" = "pt" ]; then
-            echo "Building Portuguese dependencies..."
-            pip wheel --wheel-dir wheelhouse "misaki[pt]>=0.9.4" huggingface_hub loguru numpy transformers
-          fi
-          
-          # For CPU builds, double-check and remove any CUDA packages that might have slipped through
+          # For CPU builds, remove any CUDA packages that might have slipped through
           if [ "$GPU_SUPPORT" = "cpu" ]; then
-            echo "Double-checking for CUDA packages in the CPU build..."
+            echo "Final check: removing any CUDA-related wheels from the CPU build..."
             find wheelhouse -name "*cuda*" -delete
             find wheelhouse -name "*nvidia*" -delete
+            find wheelhouse -name "*nccl*" -delete
           fi
           
           # List all wheels for debugging
