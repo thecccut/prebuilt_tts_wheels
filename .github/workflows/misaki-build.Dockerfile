@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM python:3.10-slim-bullseye
 
 ARG PYTHON_VERSION
 ARG PACKAGE_VERSION
