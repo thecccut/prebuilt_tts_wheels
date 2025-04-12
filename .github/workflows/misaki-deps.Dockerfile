@@ -1,7 +1,7 @@
-ARG PYTHON_VERSION=3.10 # Default value if not provided
+ARG PYTHON_VERSION=3.10
 ARG PACKAGE_VERSION
 
-FROM python:${PYTHON_VERSION}-slim
+FROM python:${PYTHON_VERSION}-slim-bullseye
 
 # Make sure PACKAGE_VERSION is available in the build environment
 ARG PACKAGE_VERSION
