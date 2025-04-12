@@ -237,106 +237,126 @@ jobs:
         run: |
           mkdir -p wheelhouse
           
+          # Set strict error handling to ensure we fail on errors
+          set -e
+          
+          echo "===== Starting dependency build ====="
+          echo "Platform: $(uname -m)"
+          echo "Language: $LANGUAGE"
+          echo "GPU Support: $GPU_SUPPORT"
+          
           # Configure PyTorch installation based on GPU/CPU choice
           if [ "$GPU_SUPPORT" = "gpu" ]; then
             echo "Building with GPU support - including CUDA dependencies"
             # For GPU builds, use the default PyTorch with CUDA support
-            TORCH_INSTALL_CMD="pip install torch"
+            pip install torch || { echo "ERROR: Failed to install PyTorch with GPU support"; exit 1; }
             TORCH_INDEX=""
-            EXTRA_ARGS=""
           else
             echo "Building CPU-only version - using PyTorch CPU variant"
             # For CPU builds, explicitly use the CPU-only PyTorch variant
-            TORCH_INSTALL_CMD="pip install torch --extra-index-url https://download.pytorch.org/whl/cpu"
+            pip install torch --extra-index-url https://download.pytorch.org/whl/cpu || { echo "ERROR: Failed to install PyTorch CPU variant"; exit 1; }
             TORCH_INDEX="--extra-index-url https://download.pytorch.org/whl/cpu"
-            EXTRA_ARGS="--config-settings=\"--global-option=build_ext\" --config-settings=\"--global-option=-DUSE_CUDA=OFF\""
           fi
-          
-          # Execute the appropriate PyTorch installation
-          eval $TORCH_INSTALL_CMD
           
           # Verify currently installed PyTorch packages
           echo "Currently installed PyTorch packages:"
-          pip list | grep -E 'torch|cuda|nvidia'
+          pip list | grep -E 'torch|cuda|nvidia' || echo "No PyTorch packages found - this is unexpected"
           
           # Build pyopenjtalk first to handle CMake policy issue
-          pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0 || echo "Pyopenjtalk wheel build failed, will try with full kokoro install"
+          echo "Building pyopenjtalk..."
+          pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0 || { echo "ERROR: Failed to build pyopenjtalk"; exit 1; }
           
-          # Now collect all dependencies based on language selection
-          # Using full dependency collection to ensure ALL supporting packages are included
+          # Create a function to handle dependency building with proper error checking
+          build_dependencies() {
+            local pkg="$1"
+            local desc="$2"
+            
+            echo "Building $desc dependencies..."
+            pip wheel --wheel-dir wheelhouse "$pkg" $TORCH_INDEX
+            
+            # Check if build was successful by counting wheels
+            wheel_count=$(find wheelhouse -name "*.whl" | wc -l)
+            echo "Found $wheel_count wheels after building $desc"
+            
+            if [ $wheel_count -lt 5 ]; then
+              echo "ERROR: Too few wheels found after building $desc. Expected more than 5, found $wheel_count."
+              echo "This suggests dependency building failed."
+              exit 1
+            fi
+          }
+          
+          # Now collect all dependencies based on language selection with proper error handling
           if [ "$LANGUAGE" = "all" ]; then
             if [ "$GPU_SUPPORT" = "gpu" ]; then
-              echo "Collecting all dependencies for all languages with GPU support..."
-              pip wheel --wheel-dir wheelhouse "kokoro[all]==${{ github.event.inputs.version }}"
+              build_dependencies "kokoro[all]==${{ github.event.inputs.version }}" "all languages with GPU support"
             else
-              echo "Collecting all dependencies for all languages with CPU-only PyTorch..."
               # First get torch CPU variant into the wheelhouse
-              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
-              # Then get all other dependencies
-              pip wheel --wheel-dir wheelhouse "kokoro[all]==${{ github.event.inputs.version }}"
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX || { echo "ERROR: Failed to build PyTorch CPU wheel"; exit 1; }
+              build_dependencies "kokoro[all]==${{ github.event.inputs.version }}" "all languages with CPU support"
             fi
           elif [ "$LANGUAGE" = "en" ]; then
             if [ "$GPU_SUPPORT" = "gpu" ]; then
-              pip wheel --wheel-dir wheelhouse "kokoro[en]==${{ github.event.inputs.version }}"
+              build_dependencies "kokoro[en]==${{ github.event.inputs.version }}" "English with GPU support"
             else
-              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
-              pip wheel --wheel-dir wheelhouse "kokoro[en]==${{ github.event.inputs.version }}"
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX || { echo "ERROR: Failed to build PyTorch CPU wheel"; exit 1; }
+              build_dependencies "kokoro[en]==${{ github.event.inputs.version }}" "English with CPU support"
             fi
+          # ...similar pattern for other languages...
           elif [ "$LANGUAGE" = "ja" ]; then
             if [ "$GPU_SUPPORT" = "gpu" ]; then
-              pip wheel --wheel-dir wheelhouse "kokoro[ja]==${{ github.event.inputs.version }}"
+              build_dependencies "kokoro[ja]==${{ github.event.inputs.version }}" "Japanese with GPU support"
             else
-              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
-              pip wheel --wheel-dir wheelhouse "kokoro[ja]==${{ github.event.inputs.version }}"
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX || { echo "ERROR: Failed to build PyTorch CPU wheel"; exit 1; }
+              build_dependencies "kokoro[ja]==${{ github.event.inputs.version }}" "Japanese with CPU support"
             fi
           elif [ "$LANGUAGE" = "zh" ]; then
             if [ "$GPU_SUPPORT" = "gpu" ]; then
-              pip wheel --wheel-dir wheelhouse "kokoro[zh]==${{ github.event.inputs.version }}"
+              build_dependencies "kokoro[zh]==${{ github.event.inputs.version }}" "Chinese with GPU support"
             else
-              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
-              pip wheel --wheel-dir wheelhouse "kokoro[zh]==${{ github.event.inputs.version }}"
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX || { echo "ERROR: Failed to build PyTorch CPU wheel"; exit 1; }
+              build_dependencies "kokoro[zh]==${{ github.event.inputs.version }}" "Chinese with CPU support"
             fi
           elif [ "$LANGUAGE" = "ko" ]; then
             if [ "$GPU_SUPPORT" = "gpu" ]; then
-              pip wheel --wheel-dir wheelhouse "kokoro[ko]==${{ github.event.inputs.version }}"
+              build_dependencies "kokoro[ko]==${{ github.event.inputs.version }}" "Korean with GPU support"
             else
-              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
-              pip wheel --wheel-dir wheelhouse "kokoro[ko]==${{ github.event.inputs.version }}"
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX || { echo "ERROR: Failed to build PyTorch CPU wheel"; exit 1; }
+              build_dependencies "kokoro[ko]==${{ github.event.inputs.version }}" "Korean with CPU support"
             fi
           elif [ "$LANGUAGE" = "fr" ]; then
             if [ "$GPU_SUPPORT" = "gpu" ]; then
-              pip wheel --wheel-dir wheelhouse "kokoro[fr]==${{ github.event.inputs.version }}"
+              build_dependencies "kokoro[fr]==${{ github.event.inputs.version }}" "French with GPU support"
             else
-              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
-              pip wheel --wheel-dir wheelhouse "kokoro[fr]==${{ github.event.inputs.version }}"
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX || { echo "ERROR: Failed to build PyTorch CPU wheel"; exit 1; }
+              build_dependencies "kokoro[fr]==${{ github.event.inputs.version }}" "French with CPU support"
             fi
           elif [ "$LANGUAGE" = "de" ]; then
             if [ "$GPU_SUPPORT" = "gpu" ]; then
-              pip wheel --wheel-dir wheelhouse "kokoro[de]==${{ github.event.inputs.version }}"
+              build_dependencies "kokoro[de]==${{ github.event.inputs.version }}" "German with GPU support"
             else
-              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
-              pip wheel --wheel-dir wheelhouse "kokoro[de]==${{ github.event.inputs.version }}"
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX || { echo "ERROR: Failed to build PyTorch CPU wheel"; exit 1; }
+              build_dependencies "kokoro[de]==${{ github.event.inputs.version }}" "German with CPU support"
             fi
           elif [ "$LANGUAGE" = "es" ]; then
             if [ "$GPU_SUPPORT" = "gpu" ]; then
-              pip wheel --wheel-dir wheelhouse "kokoro[es]==${{ github.event.inputs.version }}"
+              build_dependencies "kokoro[es]==${{ github.event.inputs.version }}" "Spanish with GPU support"
             else
-              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
-              pip wheel --wheel-dir wheelhouse "kokoro[es]==${{ github.event.inputs.version }}"
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX || { echo "ERROR: Failed to build PyTorch CPU wheel"; exit 1; }
+              build_dependencies "kokoro[es]==${{ github.event.inputs.version }}" "Spanish with CPU support"
             fi
           elif [ "$LANGUAGE" = "ru" ]; then
             if [ "$GPU_SUPPORT" = "gpu" ]; then
-              pip wheel --wheel-dir wheelhouse "kokoro[ru]==${{ github.event.inputs.version }}"
+              build_dependencies "kokoro[ru]==${{ github.event.inputs.version }}" "Russian with GPU support"
             else
-              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
-              pip wheel --wheel-dir wheelhouse "kokoro[ru]==${{ github.event.inputs.version }}"
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX || { echo "ERROR: Failed to build PyTorch CPU wheel"; exit 1; }
+              build_dependencies "kokoro[ru]==${{ github.event.inputs.version }}" "Russian with CPU support"
             fi
           elif [ "$LANGUAGE" = "pt" ]; then
             if [ "$GPU_SUPPORT" = "gpu" ]; then
-              pip wheel --wheel-dir wheelhouse "kokoro[pt]==${{ github.event.inputs.version }}"
+              build_dependencies "kokoro[pt]==${{ github.event.inputs.version }}" "Portuguese with GPU support"
             else
-              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
-              pip wheel --wheel-dir wheelhouse "kokoro[pt]==${{ github.event.inputs.version }}"
+              pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX || { echo "ERROR: Failed to build PyTorch CPU wheel"; exit 1; }
+              build_dependencies "kokoro[pt]==${{ github.event.inputs.version }}" "Portuguese with CPU support"
             fi
           else
             echo "Unsupported language: $LANGUAGE" && exit 1
@@ -350,11 +370,31 @@ jobs:
             find wheelhouse -name "*nccl*" -delete
           fi
           
-          # List all wheels for debugging
+          # List all wheels and perform final checks
           find wheelhouse -name "*.whl" | sort > wheelhouse/wheel_list.txt
           echo "All wheels built:"
           cat wheelhouse/wheel_list.txt
-          echo "Total wheel count: $(cat wheelhouse/wheel_list.txt | wc -l)"
+          wheel_count=$(cat wheelhouse/wheel_list.txt | wc -l)
+          echo "Total wheel count: $wheel_count"
+          
+          # Final validation - ensure we have a minimum number of wheels
+          # For ARM64 builds, this might differ between platforms, but should be substantial
+          if [ $wheel_count -lt 60 ]; then
+            echo "ERROR: Too few wheels found after build. Expected at least 60, found $wheel_count."
+            echo "This suggests the build process failed to collect all dependencies."
+            exit 1
+          fi
+          
+          # Verify that critical packages are present
+          for critical_pkg in torch numpy transformers huggingface_hub loguru misaki kokoro
+          do
+            if ! grep -q "$critical_pkg" wheelhouse/wheel_list.txt; then
+              echo "ERROR: Critical package '$critical_pkg' is missing from the built wheels!"
+              exit 1
+            fi
+          done
+          
+          echo "===== Dependency build completed successfully ====="
 
       - name: Upload ARM64 Dependencies
         uses: actions/upload-artifact@v4
