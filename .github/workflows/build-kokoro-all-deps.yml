@@ -522,10 +522,48 @@ jobs:
         with:
           path: artifacts
 
+      - name: Prepare AMD64 and ARM64 wheel directories for Docker build
+        run: |
+          # Create the directories expected by the Dockerfile
+          mkdir -p wheelhouse-amd64-py${{ matrix.python-version }}
+          mkdir -p wheelhouse-arm64-py${{ matrix.python-version }}
+          
+          # Copy AMD64 wheels
+          if [ -d "artifacts/kokoro-all-deps-amd64-py${{ matrix.python-version }}" ]; then
+            cp -f artifacts/kokoro-all-deps-amd64-py${{ matrix.python-version }}/*.whl wheelhouse-amd64-py${{ matrix.python-version }}/ || echo "No AMD64 wheels found"
+            echo "AMD64 wheels count: $(find wheelhouse-amd64-py${{ matrix.python-version }} -name "*.whl" | wc -l)"
+          else
+            echo "WARNING: AMD64 artifact directory not found"
+          fi
+          
+          # Copy ARM64 wheels
+          if [ -d "artifacts/kokoro-all-deps-arm64-py${{ matrix.python-version }}" ]; then
+            cp -f artifacts/kokoro-all-deps-arm64-py${{ matrix.python-version }}/*.whl wheelhouse-arm64-py${{ matrix.python-version }}/ || echo "No ARM64 wheels found"
+            echo "ARM64 wheels count: $(find wheelhouse-arm64-py${{ matrix.python-version }} -name "*.whl" | wc -l)"
+          else
+            echo "WARNING: ARM64 artifact directory not found"
+          fi
+          
+          # List the directory structure
+          echo "Directory structure for Docker build:"
+          find wheelhouse-* -type f | wc -l
+
       - name: Prepare AMD64 wheels directory
         id: amd64-wheels
         run: |
-          mkdir -p wheelhouse-amd64-py${{ matrix.python-version }}
+          AMD64_COUNT=$(find wheelhouse-amd64-py${{ matrix.python-version }} -type f -name "*.whl" | wc -l)
+          echo "count=${AMD64_COUNT}" >> $GITHUB_OUTPUT
+          if [ "${AMD64_COUNT}" -gt 0 ]; then
+            echo "found=true" >> $GITHUB_OUTPUT
+            echo "::notice title=AMD64 Wheels::Found ${AMD64_COUNT} wheels for Python ${{ matrix.python-version }}"
+          else
+            echo "found=false" >> $GITHUB_OUTPUT
+            echo "::warning title=AMD64 Wheels::No wheels found for Python ${{ matrix.python-version }}"
+          fi
+
+      - name: Prepare ARM64 wheels directory
+        id: arm64-wheels
+        run: |
           ARM64_COUNT=$(find wheelhouse-arm64-py${{ matrix.python-version }} -type f -name "*.whl" | wc -l)
           echo "count=${ARM64_COUNT}" >> $GITHUB_OUTPUT
           if [ "${ARM64_COUNT}" -gt 0 ]; then
