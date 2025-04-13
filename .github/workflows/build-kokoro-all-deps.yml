@@ -587,6 +587,29 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.PAT_PACKAGES }}  # Use PAT instead of GITHUB_TOKEN
 
+      - name: Set dynamic image labels
+        id: image-labels
+        run: |
+          # Set comprehensive dynamic description based on inputs
+          PLATFORM_DESC="AMD64+ARM64"
+          if [ "${{ github.event.inputs.gpu_support }}" == "gpu" ]; then
+            SUPPORT_DESC="with CUDA support"
+          else
+            SUPPORT_DESC="CPU only"
+          fi
+          
+          if [ "${{ github.event.inputs.language }}" == "all" ]; then
+            LANG_DESC="all languages"
+          else
+            LANG_DESC="${{ github.event.inputs.language }} language"
+          fi
+          
+          # Create the full description
+          FULL_DESC="Pre-built wheels for Kokoro TTS v${{ github.event.inputs.version }} ($LANG_DESC, $SUPPORT_DESC) for $PLATFORM_DESC architectures"
+          
+          # Set as output for use in the next step
+          echo "description=${FULL_DESC}" >> $GITHUB_OUTPUT
+
       - name: Build and push multi-platform image
         uses: docker/build-push-action@v5
         with:
@@ -601,5 +624,14 @@ jobs:
           cache-to: type=gha,mode=max # Enable GHA cache write
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.description=Pre-built wheels for Kokoro TTS (${{ github.event.inputs.language }}, ${{ github.event.inputs.gpu_support }})
+            org.opencontainers.image.description=${{ steps.image-labels.outputs.description }}
             org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.version=${{ github.event.inputs.version }}
+            org.opencontainers.image.created=${{ github.event.created_at }}
+            org.label-schema.schema-version=1.0
+            org.label-schema.name=kokoro-deps
+            org.label-schema.version=${{ github.event.inputs.version }}
+            org.label-schema.language=${{ github.event.inputs.language }}
+            org.label-schema.gpu-support=${{ github.event.inputs.gpu_support }}
+            org.label-schema.python-version=${{ matrix.python-version }}
+            io.github.remsky.architectures=amd64,arm64
