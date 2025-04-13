@@ -73,18 +73,19 @@ jobs:
           mkdir -p wheelhouse
           
           # Configure PyTorch installation based on GPU/CPU choice
+          # Set a specific PyTorch version to ensure consistency across architectures
+          TORCH_VERSION="2.6.0"
+          
           if [ "$GPU_SUPPORT" = "gpu" ]; then
             echo "Building with GPU support - including CUDA dependencies"
             # For GPU builds, use the default PyTorch with CUDA support
-            TORCH_INSTALL_CMD="pip install torch"
+            pip install torch==${TORCH_VERSION} || { echo "ERROR: Failed to install PyTorch ${TORCH_VERSION} with GPU support"; exit 1; }
             TORCH_INDEX=""
-            EXTRA_ARGS=""
           else
             echo "Building CPU-only version - using PyTorch CPU variant"
             # For CPU builds, explicitly use the CPU-only PyTorch variant
-            TORCH_INSTALL_CMD="pip install torch --extra-index-url https://download.pytorch.org/whl/cpu"
+            pip install torch==${TORCH_VERSION} --extra-index-url https://download.pytorch.org/whl/cpu || { echo "ERROR: Failed to install PyTorch ${TORCH_VERSION} CPU variant"; exit 1; }
             TORCH_INDEX="--extra-index-url https://download.pytorch.org/whl/cpu"
-            EXTRA_ARGS="--config-settings=\"--global-option=build_ext\" --config-settings=\"--global-option=-DUSE_CUDA=OFF\""
           fi
           
           # Execute the appropriate PyTorch installation
@@ -246,15 +247,18 @@ jobs:
           echo "GPU Support: $GPU_SUPPORT"
           
           # Configure PyTorch installation based on GPU/CPU choice
+          # Set a specific PyTorch version to ensure consistency across architectures
+          TORCH_VERSION="2.6.0"
+          
           if [ "$GPU_SUPPORT" = "gpu" ]; then
             echo "Building with GPU support - including CUDA dependencies"
             # For GPU builds, use the default PyTorch with CUDA support
-            pip install torch || { echo "ERROR: Failed to install PyTorch with GPU support"; exit 1; }
+            pip install torch==${TORCH_VERSION} || { echo "ERROR: Failed to install PyTorch ${TORCH_VERSION} with GPU support"; exit 1; }
             TORCH_INDEX=""
           else
             echo "Building CPU-only version - using PyTorch CPU variant"
             # For CPU builds, explicitly use the CPU-only PyTorch variant
-            pip install torch --extra-index-url https://download.pytorch.org/whl/cpu || { echo "ERROR: Failed to install PyTorch CPU variant"; exit 1; }
+            pip install torch==${TORCH_VERSION} --extra-index-url https://download.pytorch.org/whl/cpu || { echo "ERROR: Failed to install PyTorch ${TORCH_VERSION} CPU variant"; exit 1; }
             TORCH_INDEX="--extra-index-url https://download.pytorch.org/whl/cpu"
           fi
           
@@ -287,7 +291,7 @@ jobs:
           
           # Now collect all dependencies based on language selection with proper error handling
           if [ "$LANGUAGE" = "all" ]; then
-            if [ "$GPU_SUPPORT" = "gpu" ]; then
+            if [ "$GPU_SUPPORT" = "gpu" ];then
               build_dependencies "kokoro[all]==${{ github.event.inputs.version }}" "all languages with GPU support"
             else
               # First get torch CPU variant into the wheelhouse
@@ -370,12 +374,59 @@ jobs:
             find wheelhouse -name "*nccl*" -delete
           fi
           
-          # List all wheels and perform final checks
+          # List all wheels and perform final checks with detailed size information
           find wheelhouse -name "*.whl" | sort > wheelhouse/wheel_list.txt
-          echo "All wheels built:"
-          cat wheelhouse/wheel_list.txt
+          
+          # Detailed analysis of PyTorch wheel
+          echo "===== PyTorch Wheel Analysis ====="
+          torch_wheel=$(find wheelhouse -name "torch*.whl" | head -1)
+          if [ -n "$torch_wheel" ]; then
+            echo "PyTorch wheel found: $(basename $torch_wheel)"
+            # Get size in MB
+            torch_size_bytes=$(stat -c %s "$torch_wheel")
+            torch_size_mb=$(echo "scale=2; $torch_size_bytes / 1048576" | bc)
+            echo "PyTorch wheel size: $torch_size_mb MB ($torch_size_bytes bytes)"
+            
+            # Analyze wheel content
+            echo "PyTorch wheel content analysis:"
+            mkdir -p torch_extract
+            unzip -q "$torch_wheel" -d torch_extract
+            echo "Top-level directories in PyTorch wheel:"
+            find torch_extract -maxdepth 1 -type d | sort
+            
+            # List largest files to identify what's taking up space
+            echo "Largest files in PyTorch wheel:"
+            find torch_extract -type f -exec du -h {} \; | sort -hr | head -10
+            
+            # Clean up
+            rm -rf torch_extract
+          else
+            echo "No PyTorch wheel found!"
+          fi
+          
+          # Get total size info
+          echo "===== All Wheels Size Analysis ====="
+          echo "All wheels with sizes (sorted by size):"
+          find wheelhouse -name "*.whl" -exec du -h {} \; | sort -h
+          
+          # Get total size and count
+          total_size_bytes=$(find wheelhouse -name "*.whl" -exec stat -c %s {} \; | awk '{s+=$1} END {print s}')
+          total_size_mb=$(echo "scale=2; $total_size_bytes / 1048576" | bc)
+          wheel_count=$(find wheelhouse -name "*.whl" | wc -l)
+          echo "Total wheel count: $wheel_count"
+          echo "Total wheels size: $total_size_mb MB ($total_size_bytes bytes)"
+          echo "Platform: $(uname -m)"
+          
+          # Also get total size
+          total_size=$(du -ch wheelhouse/*.whl | grep total | cut -f1)
           wheel_count=$(cat wheelhouse/wheel_list.txt | wc -l)
           echo "Total wheel count: $wheel_count"
+          echo "Total wheels size: $total_size"
+          echo "Platform: $(uname -m)"
+          
+          # Check specifically for torch wheel size
+          torch_size=$(du -h wheelhouse/torch*.whl | cut -f1 || echo "No torch wheel found")
+          echo "PyTorch wheel size: $torch_size"
           
           # Final validation - ensure we have a minimum number of wheels
           # For ARM64 builds, this might differ between platforms, but should be substantial
@@ -475,16 +526,6 @@ jobs:
         id: amd64-wheels
         run: |
           mkdir -p wheelhouse-amd64-py${{ matrix.python-version }}
-          cp -f artifacts/kokoro-all-deps-amd64-py${{ matrix.python-version }}/*.whl wheelhouse-amd64-py${{ matrix.python-version }}/ || true
-          AMD64_COUNT=$(find wheelhouse-amd64-py${{ matrix.python-version }} -type f -name "*.whl" | wc -l)
-          echo "count=${AMD64_COUNT}" >> $GITHUB_OUTPUT
-          echo "::notice title=AMD64 Wheels::Found ${AMD64_COUNT} wheels for Python ${{ matrix.python-version }}"
-          
-      - name: Prepare ARM64 wheels directory
-        id: arm64-wheels
-        run: |
-          mkdir -p wheelhouse-arm64-py${{ matrix.python-version }}
-          cp -f artifacts/kokoro-all-deps-arm64-py${{ matrix.python-version }}/*.whl wheelhouse-arm64-py${{ matrix.python-version }}/ || true
           ARM64_COUNT=$(find wheelhouse-arm64-py${{ matrix.python-version }} -type f -name "*.whl" | wc -l)
           echo "count=${ARM64_COUNT}" >> $GITHUB_OUTPUT
           if [ "${ARM64_COUNT}" -gt 0 ]; then
