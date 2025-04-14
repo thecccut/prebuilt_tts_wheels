@@ -67,9 +67,6 @@ jobs:
           LANGUAGE: ${{ github.event.inputs.language }}
           GPU_SUPPORT: ${{ github.event.inputs.gpu_support }}
         run: |
-          # Ensure cargo/rust tools are in the PATH for maturin
-          export PATH="$HOME/.cargo/bin:$PATH"
-          
           # Enable strict error handling - ANY failed command will abort the script
           set -e
           
@@ -208,6 +205,12 @@ jobs:
           LANGUAGE: ${{ github.event.inputs.language }}
           GPU_SUPPORT: ${{ github.event.inputs.gpu_support }}
         run: |
+          # Ensure cargo/rust tools are in the PATH for maturin
+          export PATH="$HOME/.cargo/bin:$PATH"
+          
+          # Enable strict error handling - ANY failed command will abort the script
+          set -e
+          
           # Enable strict error handling - ANY failed command will abort the script
           set -e
           
