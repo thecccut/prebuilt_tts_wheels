@@ -67,6 +67,9 @@ jobs:
           LANGUAGE: ${{ github.event.inputs.language }}
           GPU_SUPPORT: ${{ github.event.inputs.gpu_support }}
         run: |
+          # Enable strict error handling - ANY failed command will abort the script
+          set -e
+          
           mkdir -p wheelhouse
           
           # Configure PyTorch installation based on GPU/CPU choice
@@ -78,12 +81,41 @@ jobs:
             TORCH_INDEX="--extra-index-url https://download.pytorch.org/whl/cpu"
           fi
           
-          # Simple build process, no need for repetitive conditionals
           echo "Building dependencies for language: $LANGUAGE"
           
-          # Build all wheels we need
-          pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
-          pip wheel --wheel-dir wheelhouse "kokoro[$LANGUAGE]==${{ github.event.inputs.version }}"
+          # Special handling for when we want all languages
+          if [ "$LANGUAGE" = "all" ]; then
+            echo "Building with ALL language support - explicitly installing all language variants of misaki"
+            # First build the PyTorch wheel (required first)
+            pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
+            
+            # Install language-specific dependencies for EVERY language Misaki supports
+            # This ensures we pull in all necessary language dependencies
+            pip wheel --wheel-dir wheelhouse "misaki[en,ja,zh,ko,vi,he]>=0.9.4" 
+            
+            # Build pyopenjtalk for Japanese
+            echo "Building pyopenjtalk..."
+            pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0
+            
+            # Now build Kokoro with the all option to get any remaining dependencies
+            pip wheel --wheel-dir wheelhouse "kokoro[$LANGUAGE]==${{ github.event.inputs.version }}"
+          else
+            # For individual language support
+            # Build pyopenjtalk first if building Japanese support
+            if [ "$LANGUAGE" = "ja" ]; then
+              echo "Building pyopenjtalk..."
+              pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0
+            fi
+            
+            # Build all wheels we need
+            pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
+            
+            # First build misaki with the selected language to ensure we have all language deps
+            pip wheel --wheel-dir wheelhouse "misaki[$LANGUAGE]>=0.9.4"
+            
+            # Then build Kokoro which will use those deps
+            pip wheel --wheel-dir wheelhouse "kokoro[$LANGUAGE]==${{ github.event.inputs.version }}"
+          fi
           
           # For CPU builds, remove any CUDA packages
           if [ "$GPU_SUPPORT" = "cpu" ]; then
@@ -91,6 +123,36 @@ jobs:
             find wheelhouse -name "*cuda*" -delete
             find wheelhouse -name "*nvidia*" -delete
             find wheelhouse -name "*nccl*" -delete
+          fi
+          
+          # Final validation to ensure we have language-specific dependencies
+          echo "Validating language dependencies..."
+          if [ "$LANGUAGE" = "all" ] || [ "$LANGUAGE" = "ja" ]; then
+            # For Japanese, we should have mojimoji, fugashi, etc.
+            if ! find wheelhouse -name "mojimoji*" | grep -q .; then
+              echo "ERROR: Japanese support requested but mojimoji not found in wheels!"
+              exit 1
+            fi
+            if ! find wheelhouse -name "fugashi*" | grep -q .; then
+              echo "ERROR: Japanese support requested but fugashi not found in wheels!"
+              exit 1
+            fi
+          fi
+          
+          if [ "$LANGUAGE" = "all" ] || [ "$LANGUAGE" = "zh" ]; then
+            # For Chinese, we should have jieba, etc.
+            if ! find wheelhouse -name "jieba*" | grep -q .; then
+              echo "ERROR: Chinese support requested but jieba not found in wheels!"
+              exit 1
+            fi
+          fi
+          
+          if [ "$LANGUAGE" = "all" ] || [ "$LANGUAGE" = "ko" ]; then
+            # For Korean, we should have jamo, etc.
+            if ! find wheelhouse -name "jamo*" | grep -q .; then
+              echo "ERROR: Korean support requested but jamo not found in wheels!"
+              exit 1
+            fi
           fi
           
           # List all wheels
@@ -143,6 +205,9 @@ jobs:
           LANGUAGE: ${{ github.event.inputs.language }}
           GPU_SUPPORT: ${{ github.event.inputs.gpu_support }}
         run: |
+          # Enable strict error handling - ANY failed command will abort the script
+          set -e
+          
           mkdir -p wheelhouse
           
           # Configure PyTorch installation based on GPU/CPU choice
@@ -154,12 +219,41 @@ jobs:
             TORCH_INDEX="--extra-index-url https://download.pytorch.org/whl/cpu"
           fi
           
-          # Simple build process, no need for repetitive conditionals
           echo "Building dependencies for language: $LANGUAGE"
           
-          # Build all wheels we need
-          pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
-          pip wheel --wheel-dir wheelhouse "kokoro[$LANGUAGE]==${{ github.event.inputs.version }}"
+          # Special handling for when we want all languages
+          if [ "$LANGUAGE" = "all" ]; then
+            echo "Building with ALL language support - explicitly installing all language variants of misaki"
+            # First build the PyTorch wheel (required first)
+            pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
+            
+            # Install language-specific dependencies for EVERY language Misaki supports
+            # This ensures we pull in all necessary language dependencies
+            pip wheel --wheel-dir wheelhouse "misaki[en,ja,zh,ko,vi,he]>=0.9.4" 
+            
+            # Build pyopenjtalk for Japanese
+            echo "Building pyopenjtalk..."
+            pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0
+            
+            # Now build Kokoro with the all option to get any remaining dependencies
+            pip wheel --wheel-dir wheelhouse "kokoro[$LANGUAGE]==${{ github.event.inputs.version }}"
+          else
+            # For individual language support
+            # Build pyopenjtalk first if building Japanese support
+            if [ "$LANGUAGE" = "ja" ]; then
+              echo "Building pyopenjtalk..."
+              pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0
+            fi
+            
+            # Build all wheels we need
+            pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
+            
+            # First build misaki with the selected language to ensure we have all language deps
+            pip wheel --wheel-dir wheelhouse "misaki[$LANGUAGE]>=0.9.4"
+            
+            # Then build Kokoro which will use those deps
+            pip wheel --wheel-dir wheelhouse "kokoro[$LANGUAGE]==${{ github.event.inputs.version }}"
+          fi
           
           # For CPU builds, remove any CUDA packages
           if [ "$GPU_SUPPORT" = "cpu" ]; then
@@ -167,6 +261,36 @@ jobs:
             find wheelhouse -name "*cuda*" -delete
             find wheelhouse -name "*nvidia*" -delete
             find wheelhouse -name "*nccl*" -delete
+          fi
+          
+          # Final validation to ensure we have language-specific dependencies
+          echo "Validating language dependencies..."
+          if [ "$LANGUAGE" = "all" ] || [ "$LANGUAGE" = "ja" ]; then
+            # For Japanese, we should have mojimoji, fugashi, etc.
+            if ! find wheelhouse -name "mojimoji*" | grep -q .; then
+              echo "ERROR: Japanese support requested but mojimoji not found in wheels!"
+              exit 1
+            fi
+            if ! find wheelhouse -name "fugashi*" | grep -q .; then
+              echo "ERROR: Japanese support requested but fugashi not found in wheels!"
+              exit 1
+            fi
+          fi
+          
+          if [ "$LANGUAGE" = "all" ] || [ "$LANGUAGE" = "zh" ]; then
+            # For Chinese, we should have jieba, etc.
+            if ! find wheelhouse -name "jieba*" | grep -q .; then
+              echo "ERROR: Chinese support requested but jieba not found in wheels!"
+              exit 1
+            fi
+          fi
+          
+          if [ "$LANGUAGE" = "all" ] || [ "$LANGUAGE" = "ko" ]; then
+            # For Korean, we should have jamo, etc.
+            if ! find wheelhouse -name "jamo*" | grep -q .; then
+              echo "ERROR: Korean support requested but jamo not found in wheels!"
+              exit 1
+            fi
           fi
           
           # List all wheels
