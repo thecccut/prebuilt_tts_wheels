@@ -96,7 +96,7 @@ jobs:
             echo "Pre-wheeling language-specific dependencies..."
             # Use --no-build-isolation for Rust dependency to ensure maturin is found
             pip wheel --no-build-isolation --wheel-dir wheelhouse underthesea # Vietnamese (Rust)
-            pip wheel --wheel-dir wheelhouse mojimoji    # Japanese
+            pip wheel --no-build-isolation --wheel-dir wheelhouse mojimoji    # Japanese (Rust)
             pip wheel --wheel-dir wheelhouse fugashi     # Japanese
             pip wheel --wheel-dir wheelhouse jieba       # Chinese
             pip wheel --wheel-dir wheelhouse jamo        # Korean
@@ -248,11 +248,23 @@ jobs:
             # First build the PyTorch wheel (required first)
             pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
             
-            # Install language-specific dependencies for EVERY language Misaki supports
-            # This ensures we pull in all necessary language dependencies
+            # Explicitly pre-wheel known complex/native language dependencies first
+            echo "Pre-wheeling language-specific dependencies..."
+            # Use --no-build-isolation for Rust dependency to ensure maturin is found
+            pip wheel --no-build-isolation --wheel-dir wheelhouse underthesea # Vietnamese (Rust)
+            pip wheel --no-build-isolation --wheel-dir wheelhouse mojimoji    # Japanese (Rust)
+            pip wheel --wheel-dir wheelhouse fugashi     # Japanese
+            pip wheel --wheel-dir wheelhouse jieba       # Chinese
+            pip wheel --wheel-dir wheelhouse jamo        # Korean
+            pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0 # Japanese (Specific version)
+            
+            # Now wheel misaki with all extras to catch remaining deps
+            echo "Wheeling misaki with all extras..."
             pip wheel --wheel-dir wheelhouse "misaki[en,ja,zh,ko,vi,he]>=0.9.4" 
-
-            # Build pyopenjtalk for Japanese
+            
+            # Build pyopenjtalk for Japanese (This line is now redundant due to pre-wheeling above, removing)
+            # echo "Building pyopenjtalk..."
+            # pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0
             echo "Building pyopenjtalk..."
             pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0
             
