@@ -96,7 +96,7 @@ jobs:
             echo "Pre-wheeling language-specific dependencies..."
             # Use --no-build-isolation for Rust dependency to ensure maturin is found
             pip wheel --no-build-isolation --wheel-dir wheelhouse underthesea # Vietnamese (Rust)
-            pip wheel --no-build-isolation --wheel-dir wheelhouse mojimoji    # Japanese (Rust)
+            pip wheel --wheel-dir wheelhouse mojimoji    # Japanese (C Extension)
             pip wheel --wheel-dir wheelhouse fugashi     # Japanese
             pip wheel --wheel-dir wheelhouse jieba       # Chinese
             pip wheel --wheel-dir wheelhouse jamo        # Korean
@@ -245,7 +245,7 @@ jobs:
             echo "Pre-wheeling language-specific dependencies..."
             # Use --no-build-isolation for Rust dependency to ensure maturin is found
             pip wheel --no-build-isolation --wheel-dir wheelhouse underthesea # Vietnamese (Rust)
-            pip wheel --no-build-isolation --wheel-dir wheelhouse mojimoji    # Japanese (Rust)
+            pip wheel --wheel-dir wheelhouse mojimoji    # Japanese (C Extension)
             pip wheel --wheel-dir wheelhouse fugashi     # Japanese
             pip wheel --wheel-dir wheelhouse jieba       # Chinese
             pip wheel --wheel-dir wheelhouse jamo        # Korean
