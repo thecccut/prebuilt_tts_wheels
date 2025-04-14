@@ -106,11 +106,7 @@ jobs:
             echo "Wheeling misaki with all extras..."
             pip wheel --wheel-dir wheelhouse "misaki[en,ja,zh,ko,vi,he]>=0.9.4" 
             
-            # Build pyopenjtalk for Japanese (This line is now redundant due to pre-wheeling above, removing)
-            # echo "Building pyopenjtalk..."
-            # pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0
-            echo "Building pyopenjtalk..."
-            pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0
+            # pyopenjtalk was already built during pre-wheeling, no need to build again here.
             
             # Now build Kokoro with the all option to get any remaining dependencies
             pip wheel --wheel-dir wheelhouse "kokoro[$LANGUAGE]==${{ github.event.inputs.version }}"
@@ -226,9 +222,6 @@ jobs:
           # Enable strict error handling - ANY failed command will abort the script
           set -e
           
-          # Enable strict error handling - ANY failed command will abort the script
-          set -e
-          
           mkdir -p wheelhouse
           
           # Configure PyTorch installation based on GPU/CPU choice
@@ -262,11 +255,7 @@ jobs:
             echo "Wheeling misaki with all extras..."
             pip wheel --wheel-dir wheelhouse "misaki[en,ja,zh,ko,vi,he]>=0.9.4" 
             
-            # Build pyopenjtalk for Japanese (This line is now redundant due to pre-wheeling above, removing)
-            # echo "Building pyopenjtalk..."
-            # pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0
-            echo "Building pyopenjtalk..."
-            pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0
+            # pyopenjtalk was already built during pre-wheeling, no need to build again here.
             
             # Now build Kokoro with the all option to get any remaining dependencies
             pip wheel --wheel-dir wheelhouse "kokoro[$LANGUAGE]==${{ github.event.inputs.version }}"
