@@ -60,6 +60,8 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           source $HOME/.cargo/env
           python -m pip install --upgrade pip setuptools wheel pip-tools maturin
+          echo "Verifying maturin installation..."
+          maturin --help
 
       - name: Build all wheels and dependencies
         env:
@@ -67,6 +69,11 @@ jobs:
           LANGUAGE: ${{ github.event.inputs.language }}
           GPU_SUPPORT: ${{ github.event.inputs.gpu_support }}
         run: |
+          # Source cargo env to ensure maturin path is set
+          source $HOME/.cargo/env
+          # Add Python user bin to PATH as well
+          export PATH="$HOME/.local/bin:$PATH"
+          
           # Enable strict error handling - ANY failed command will abort the script
           set -e
           
@@ -89,11 +96,22 @@ jobs:
             # First build the PyTorch wheel (required first)
             pip wheel --wheel-dir wheelhouse torch $TORCH_INDEX
             
-            # Install language-specific dependencies for EVERY language Misaki supports
-            # This ensures we pull in all necessary language dependencies
+            # Explicitly pre-wheel known complex/native language dependencies first
+            echo "Pre-wheeling language-specific dependencies..."
+            pip wheel --wheel-dir wheelhouse underthesea # Vietnamese (Rust)
+            pip wheel --wheel-dir wheelhouse mojimoji    # Japanese
+            pip wheel --wheel-dir wheelhouse fugashi     # Japanese
+            pip wheel --wheel-dir wheelhouse jieba       # Chinese
+            pip wheel --wheel-dir wheelhouse jamo        # Korean
+            pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0 # Japanese (Specific version)
+            
+            # Now wheel misaki with all extras to catch remaining deps
+            echo "Wheeling misaki with all extras..."
             pip wheel --wheel-dir wheelhouse "misaki[en,ja,zh,ko,vi,he]>=0.9.4" 
             
-            # Build pyopenjtalk for Japanese
+            # Build pyopenjtalk for Japanese (This line is now redundant due to pre-wheeling above, removing)
+            # echo "Building pyopenjtalk..."
+            # pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0
             echo "Building pyopenjtalk..."
             pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0
             
@@ -205,8 +223,8 @@ jobs:
           LANGUAGE: ${{ github.event.inputs.language }}
           GPU_SUPPORT: ${{ github.event.inputs.gpu_support }}
         run: |
-          # Ensure cargo/rust tools are in the PATH for maturin
-          export PATH="$HOME/.cargo/bin:$PATH"
+          # Source cargo env to ensure maturin path is set
+          source $HOME/.cargo/env
           
           # Enable strict error handling - ANY failed command will abort the script
           set -e
