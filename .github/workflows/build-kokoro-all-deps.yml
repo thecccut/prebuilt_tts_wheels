@@ -6,7 +6,7 @@ on:
       version:
         description: 'Version of Kokoro to build'
         required: true
-        default: '0.3.0'
+        default: '0.9.4'
       language:
         description: 'Language to build (en, ja, zh, ko, vi, he, or all)'
         required: true
@@ -67,6 +67,9 @@ jobs:
           LANGUAGE: ${{ github.event.inputs.language }}
           GPU_SUPPORT: ${{ github.event.inputs.gpu_support }}
         run: |
+          # Ensure cargo/rust tools are in the PATH for maturin
+          export PATH="$HOME/.cargo/bin:$PATH"
+          
           # Enable strict error handling - ANY failed command will abort the script
           set -e
           
@@ -230,7 +233,7 @@ jobs:
             # Install language-specific dependencies for EVERY language Misaki supports
             # This ensures we pull in all necessary language dependencies
             pip wheel --wheel-dir wheelhouse "misaki[en,ja,zh,ko,vi,he]>=0.9.4" 
-            
+
             # Build pyopenjtalk for Japanese
             echo "Building pyopenjtalk..."
             pip wheel --wheel-dir wheelhouse pyopenjtalk==0.4.0
