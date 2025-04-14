@@ -60,8 +60,6 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           source $HOME/.cargo/env
           python -m pip install --upgrade pip setuptools wheel pip-tools maturin
-          echo "Verifying maturin installation..."
-          maturin --help
 
       - name: Build all wheels and dependencies
         env:
@@ -71,8 +69,6 @@ jobs:
         run: |
           # Source cargo env to ensure maturin path is set
           source $HOME/.cargo/env
-          # Add Python user bin to PATH as well
-          export PATH="$HOME/.local/bin:$PATH"
           
           # Enable strict error handling - ANY failed command will abort the script
           set -e
@@ -98,7 +94,8 @@ jobs:
             
             # Explicitly pre-wheel known complex/native language dependencies first
             echo "Pre-wheeling language-specific dependencies..."
-            pip wheel --wheel-dir wheelhouse underthesea # Vietnamese (Rust)
+            # Use --no-build-isolation for Rust dependency to ensure maturin is found
+            pip wheel --no-build-isolation --wheel-dir wheelhouse underthesea # Vietnamese (Rust)
             pip wheel --wheel-dir wheelhouse mojimoji    # Japanese
             pip wheel --wheel-dir wheelhouse fugashi     # Japanese
             pip wheel --wheel-dir wheelhouse jieba       # Chinese
