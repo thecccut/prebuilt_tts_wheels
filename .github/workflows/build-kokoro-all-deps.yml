@@ -140,7 +140,8 @@ jobs:
             # Copy the downloaded unidic data into the wheelhouse artifact
             echo "Copying unidic data to wheelhouse/unidic_data..."
             mkdir -p wheelhouse/unidic_data
-            cp -r $HOME/.unidic/* wheelhouse/unidic_data/
+            # Copy from the actual download location inside the venv
+            cp -r /tmp/unidic-venv/lib/python3.10/site-packages/unidic/dicdir/* wheelhouse/unidic_data/
             deactivate
             rm -rf /tmp/unidic-venv
             echo "Unidic dictionary downloaded and copied."
@@ -307,7 +308,8 @@ jobs:
             # Copy the downloaded unidic data into the wheelhouse artifact
             echo "Copying unidic data to wheelhouse/unidic_data..."
             mkdir -p wheelhouse/unidic_data
-            cp -r $HOME/.unidic/* wheelhouse/unidic_data/
+            # Copy from the actual download location inside the venv
+            cp -r /tmp/unidic-venv/lib/python3.10/site-packages/unidic/dicdir/* wheelhouse/unidic_data/
             deactivate
             rm -rf /tmp/unidic-venv
             echo "Unidic dictionary downloaded and copied."
