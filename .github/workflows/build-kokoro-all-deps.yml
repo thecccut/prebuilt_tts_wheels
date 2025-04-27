@@ -195,7 +195,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kokoro-${{ github.event.inputs.language }}-${{ github.event.inputs.gpu_support }}-amd64-py${{ matrix.python-version }}
-          path: wheelhouse/*.whl
+          path: |
+            wheelhouse/*.whl
+            wheelhouse/unidic_data/
 
   build_arm64_deps:
     name: Build ARM64 Dependencies
@@ -363,7 +365,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kokoro-${{ github.event.inputs.language }}-${{ github.event.inputs.gpu_support }}-arm64-py${{ matrix.python-version }}
-          path: wheelhouse/*.whl
+          path: |
+            wheelhouse/*.whl
+            wheelhouse/unidic_data/
 
   create_deps_release:
     name: Create Dependencies Release
@@ -440,11 +444,18 @@ jobs:
           # Create the directories expected by the Dockerfile
           mkdir -p wheelhouse-amd64-py${{ matrix.python-version }}
           mkdir -p wheelhouse-arm64-py${{ matrix.python-version }}
+          mkdir -p wheelhouse-common/unidic_data
           
           # Copy AMD64 wheels using the new naming convention
           if [ -d "artifacts/kokoro-${{ github.event.inputs.language }}-${{ github.event.inputs.gpu_support }}-amd64-py${{ matrix.python-version }}" ]; then
             cp -f artifacts/kokoro-${{ github.event.inputs.language }}-${{ github.event.inputs.gpu_support }}-amd64-py${{ matrix.python-version }}/*.whl wheelhouse-amd64-py${{ matrix.python-version }}/ || echo "No AMD64 wheels found"
             echo "AMD64 wheels count: $(find wheelhouse-amd64-py${{ matrix.python-version }} -name "*.whl" | wc -l)"
+            
+            # Check for unidic_data in AMD64 artifacts and copy to common directory
+            if [ -d "artifacts/kokoro-${{ github.event.inputs.language }}-${{ github.event.inputs.gpu_support }}-amd64-py${{ matrix.python-version }}/unidic_data" ]; then
+              echo "Found unidic_data in AMD64 artifacts, copying to common directory"
+              cp -rf artifacts/kokoro-${{ github.event.inputs.language }}-${{ github.event.inputs.gpu_support }}-amd64-py${{ matrix.python-version }}/unidic_data/* wheelhouse-common/unidic_data/
+            fi
           else
             echo "WARNING: AMD64 artifact directory not found"
           fi
@@ -453,8 +464,20 @@ jobs:
           if [ -d "artifacts/kokoro-${{ github.event.inputs.language }}-${{ github.event.inputs.gpu_support }}-arm64-py${{ matrix.python-version }}" ]; then
             cp -f artifacts/kokoro-${{ github.event.inputs.language }}-${{ github.event.inputs.gpu_support }}-arm64-py${{ matrix.python-version }}/*.whl wheelhouse-arm64-py${{ matrix.python-version }}/ || echo "No ARM64 wheels found"
             echo "ARM64 wheels count: $(find wheelhouse-arm64-py${{ matrix.python-version }} -name "*.whl" | wc -l)"
+            
+            # Check for unidic_data in ARM64 artifacts and copy to common directory if not already copied
+            if [ -d "artifacts/kokoro-${{ github.event.inputs.language }}-${{ github.event.inputs.gpu_support }}-arm64-py${{ matrix.python-version }}/unidic_data" ] && [ ! "$(ls -A wheelhouse-common/unidic_data)" ]; then
+              echo "Found unidic_data in ARM64 artifacts, copying to common directory"
+              cp -rf artifacts/kokoro-${{ github.event.inputs.language }}-${{ github.event.inputs.gpu_support }}-arm64-py${{ matrix.python-version }}/unidic_data/* wheelhouse-common/unidic_data/
+            fi
           else
             echo "WARNING: ARM64 artifact directory not found"
+          fi
+          
+          # Create placeholder if unidic_data is still empty (for non-Japanese builds)
+          if [ ! "$(ls -A wheelhouse-common/unidic_data)" ]; then
+            echo "Creating placeholder file in unidic_data directory"
+            echo "This is a placeholder file. The actual unidic dictionary data is only included in Japanese language builds." > wheelhouse-common/unidic_data/README.txt
           fi
 
       - name: Prepare AMD64 wheels directory
