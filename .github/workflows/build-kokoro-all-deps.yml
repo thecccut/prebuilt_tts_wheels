@@ -97,7 +97,7 @@ jobs:
             # Use --no-build-isolation for Rust dependency to ensure maturin is found
             pip wheel --no-build-isolation --wheel-dir wheelhouse underthesea # Vietnamese (Rust)
             pip wheel --wheel-dir wheelhouse mojimoji    # Japanese (C Extension)
-            pip wheel --wheel-dir wheelhouse fugashi     # Japanese
+            pip wheel --wheel-dir wheelhouse fugashi==1.3.0     # Japanese
             pip wheel --wheel-dir wheelhouse jieba       # Chinese
             pip wheel --wheel-dir wheelhouse jamo        # Korean
             # Let misaki/kokoro resolve pyopenjtalk version
@@ -265,7 +265,7 @@ jobs:
             # Use --no-build-isolation for Rust dependency to ensure maturin is found
             pip wheel --no-build-isolation --wheel-dir wheelhouse underthesea # Vietnamese (Rust)
             pip wheel --wheel-dir wheelhouse mojimoji    # Japanese (C Extension)
-            pip wheel --wheel-dir wheelhouse fugashi     # Japanese
+            pip wheel --wheel-dir wheelhouse fugashi==1.3.0     # Japanese
             pip wheel --wheel-dir wheelhouse jieba       # Chinese
             pip wheel --wheel-dir wheelhouse jamo        # Korean
             # Let misaki/kokoro resolve pyopenjtalk version
