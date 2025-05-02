@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-ARG PYTHON_VERSION=3.10
+ARG PYTHON_VERSION=3.11
 ARG TARGETPLATFORM
 
 FROM scratch AS final-amd64
