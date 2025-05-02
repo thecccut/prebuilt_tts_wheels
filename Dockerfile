@@ -1,5 +1,5 @@
-# Use Python 3.11 slim as the base image
-FROM python:3.11-slim AS final
+# Use Python 3.12 slim as the base image
+FROM python:3.12-slim AS final
 
 # Set non-interactive frontend
 ENV DEBIAN_FRONTEND=noninteractive
@@ -44,7 +44,7 @@ RUN useradd -m -u 1000 appuser && \
 WORKDIR /app
 
 # Copy the pre-built wheels from the GHCR image
-COPY --from=ghcr.io/remsky/prebuilt_tts_wheels/misaki-deps:0.9.4-py3.11 /wheelhouse /wheelhouse
+COPY --from=ghcr.io/remsky/prebuilt_tts_wheels/misaki-deps:0.9.4-py3.12 /wheelhouse /wheelhouse
 
 # Copy dependency definition with proper permissions
 COPY --chown=appuser:appuser pyproject.toml ./pyproject.toml
@@ -60,15 +60,15 @@ RUN mkdir -p /root/.cache/uv && \
 # Install dependencies AS ROOT using pre-built wheels where available, falling back to PyPI/build.
 # Using --find-links to prioritize local wheels from the misaki-deps image.
 # Explicitly excluding CUDA dependencies with torch index-url
-RUN /usr/local/bin/uv venv --python 3.11 /app/.venv && \
+RUN /usr/local/bin/uv venv --python 3.12 /app/.venv && \
     /usr/local/bin/uv sync --find-links /wheelhouse --extra cpu \
       --no-index-url "torch.*" \
       --index-url torch,torchaudio,torchvision=https://download.pytorch.org/whl/cpu && \
     # Install Japanese dictionary for fugashi/MeCab
     /app/.venv/bin/pip install unidic fugashi && \
     # Fix MeCab dictionary permissions and ensure the directory exists
-    mkdir -p /app/.venv/lib/python3.11/site-packages/unidic/dicdir && \
-    chmod -R 755 /app/.venv/lib/python3.11/site-packages/unidic && \
+    mkdir -p /app/.venv/lib/python3.12/site-packages/unidic/dicdir && \
+    chmod -R 755 /app/.venv/lib/python3.12/site-packages/unidic && \
     rm -rf /wheelhouse && \
     chown -R appuser:appuser /app/.venv
 
